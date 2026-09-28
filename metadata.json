@@ -1,0 +1,7 @@
+{
+  "name": "Sayayin Financial & Habit Radar",
+  "description": "Sistema RPG de evolución personal inspirado en Dragon Ball que combina finanzas, hábitos y objetivos diarios con horario.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
