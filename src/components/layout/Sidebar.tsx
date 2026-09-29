@@ -12,13 +12,16 @@ import {
   Calendar,
   Users,
   Settings,
-  Lock
+  Lock,
+  Flame
 } from 'lucide-react';
 import { useSayayinStore } from '../../store/useSayayinStore';
+import { getTodayDateString } from '../../lib/formatters';
 
 export type NavTab =
   | 'inicio'
   | 'finanzas'
+  | 'habitos'
   | 'objetivos'
   | 'metas'
   | 'planes'
@@ -36,9 +39,18 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab }) => {
-  const { profile, partner, dailyObjectives, goals, expenses } = useSayayinStore();
+  const store = useSayayinStore();
+  const profile = store.profile || { currentStreak: 0, bestStreak: 0, totalPower: 0, transformation: 'base' };
+  const partner = store.partner;
+  const safeObjectives = store.dailyObjectives || [];
+  const safeGoals = store.goals || [];
+  const safeHabits = store.habits || [];
 
-  const pendingObjectivesCount = dailyObjectives.filter((o) => o.status === 'pendiente').length;
+  const todayStr = getTodayDateString();
+  const scheduledTodayHabits = store.getHabitsForDate ? store.getHabitsForDate(todayStr) : [];
+  const completedHabitsToday = scheduledTodayHabits.filter((h) => h.completedToday).length;
+
+  const pendingObjectivesCount = safeObjectives.filter((o) => o && o.status === 'pendiente').length;
 
   const navItems: {
     id: NavTab;
@@ -57,8 +69,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab }) => {
       subtitle: 'Fondo & Gastos'
     },
     {
+      id: 'habitos',
+      label: 'Hábitos',
+      icon: Flame,
+      subtitle: 'Disciplina & Rachas',
+      badge: scheduledTodayHabits.length > 0 ? `${completedHabitsToday}/${scheduledTodayHabits.length}` : undefined,
+      badgeColor: 'bg-amber-500/20 text-amber-300 border border-amber-500/40 font-mono font-bold'
+    },
+    {
       id: 'objetivos',
-      label: 'Hábitos & Objetivos',
+      label: 'Objetivos Diarios',
       icon: CheckSquare,
       badge: pendingObjectivesCount > 0 ? pendingObjectivesCount : undefined,
       badgeColor: 'bg-[#FF6600] text-black font-bold'
@@ -67,17 +87,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab }) => {
       id: 'metas',
       label: 'Metas',
       icon: Target,
-      badge: goals.length > 0 ? goals.length : undefined
+      badge: safeGoals.length > 0 ? safeGoals.length : undefined
     },
     { id: 'planes', label: 'Planes', icon: FileText },
     { id: 'acciones', label: 'Acciones Rápidas', icon: Zap },
     {
       id: 'miedos',
-      label: 'Miedos',
+      label: 'Miedos & Creencias',
       icon: ShieldAlert,
-      isLocked: true,
-      badge: 'Fase 2',
-      badgeColor: 'bg-zinc-800 text-zinc-400'
+      subtitle: 'Dominio Mental'
     },
     {
       id: 'logros',
@@ -98,7 +116,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab }) => {
   ];
 
   return (
-    <aside className="w-64 bg-[#141414] border-r border-[#242424] flex flex-col shrink-0 min-h-[calc(100vh-61px)]">
+    <aside className="w-64 bg-[#141414] border-r border-[#242424] flex flex-col shrink-0 min-h-[calc(100dvh-61px)]">
       {/* Navigation Links */}
       <div className="p-3 space-y-1 overflow-y-auto flex-1">
         <div className="px-3 py-1.5 text-[11px] font-bold text-zinc-400 uppercase tracking-wider">

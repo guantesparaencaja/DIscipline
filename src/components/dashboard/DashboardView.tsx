@@ -7,6 +7,7 @@ import { TodayObjectivesCard } from './TodayObjectivesCard';
 import { FinancialSummaryCard } from './FinancialSummaryCard';
 import { MonthlyHabitCalendar } from './MonthlyHabitCalendar';
 import { WeeklyCompletionChart } from './WeeklyCompletionChart';
+import { DashboardHabitsCard } from './DashboardHabitsCard';
 import {
   Flame,
   Zap,
@@ -17,7 +18,7 @@ import {
   Sparkles,
   Calendar
 } from 'lucide-react';
-import { formatCOP, getLevelProgress } from '../../lib/formatters';
+import { formatCOP, getLevelProgress, getTodayDateString } from '../../lib/formatters';
 import { TRANSFORMATIONS } from '../../lib/constants';
 
 interface DashboardViewProps {
@@ -33,13 +34,33 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onOpenExpenseModal,
   onNavigateTab
 }) => {
-  const { profile, goals, expenses, dailyObjectives } = useSayayinStore();
-  const levelProgress = getLevelProgress(profile.currentXp);
-  const currentTrans = TRANSFORMATIONS[profile.transformation];
+  const store = useSayayinStore();
+  const profile = store.profile || {
+    id: 'usr',
+    email: '',
+    displayName: 'Guerrero Saiyajin',
+    currentXp: 0,
+    currentLevel: 1,
+    transformation: 'base',
+    currentStreak: 0,
+    bestStreak: 0,
+    lastActiveDate: getTodayDateString(),
+    totalPower: 0,
+    basePower: 0,
+    evolutionPower: 0,
+    financialPower: 0,
+    habitsPower: 0
+  };
+  const goals = store.goals || [];
+  const expenses = store.expenses || [];
+  const dailyObjectives = store.dailyObjectives || [];
 
-  const totalSavedGoals = goals.reduce((acc, g) => acc + g.currentSavings, 0);
-  const todayObjs = dailyObjectives.filter((o) => o.date === profile.lastActiveDate);
-  const doneToday = todayObjs.filter((o) => o.status === 'completado').length;
+  const levelProgress = getLevelProgress(profile.currentXp);
+  const currentTrans = TRANSFORMATIONS[profile.transformation] || TRANSFORMATIONS.base;
+
+  const totalSavedGoals = goals.reduce((acc, g) => acc + (Number(g.currentSavings) || 0), 0);
+  const todayObjs = dailyObjectives.filter((o) => o && o.date === (profile.lastActiveDate || getTodayDateString()));
+  const doneToday = todayObjs.filter((o) => o && o.status === 'completado').length;
 
   return (
     <div className="space-y-6 pb-20 md:pb-8">
@@ -101,26 +122,32 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       {/* 4. Weekly Calendar Selector */}
       <WeeklyCalendarStrip />
 
-      {/* 5. Main Tactical Grid: Objetivos del Día + Radar Financiero */}
+      {/* 5. Main Tactical Grid: Radar de Hábitos + Objetivos del Día */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Radar de Hábitos Diarios */}
+        <DashboardHabitsCard
+          onNavigateToHabits={() => onNavigateTab('habitos')}
+          onOpenCreateHabit={() => onNavigateTab('habitos')}
+        />
+
         {/* Objetivos del Día */}
         <TodayObjectivesCard onAddObjective={onOpenObjectiveModal} />
+      </div>
 
+      {/* 6. Finanzas & Resumen Semanal */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Finanzas & Fondo Disponible */}
         <FinancialSummaryCard
           onOpenExpenseModal={onOpenExpenseModal}
           onNavigateToFinances={() => onNavigateTab('finanzas')}
         />
-      </div>
 
-      {/* 6. Charts & Monthly Calendar Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Resumen Semanal con Barras */}
         <WeeklyCompletionChart />
-
-        {/* Calendario de Progreso Mensual (con Leyenda) */}
-        <MonthlyHabitCalendar />
       </div>
+
+      {/* 7. Calendario de Progreso Mensual (con Leyenda) */}
+      <MonthlyHabitCalendar />
 
       {/* 7. Continue Training Banner Card */}
       <div className="bg-gradient-to-r from-[#1f1915] via-[#1c1c1c] to-[#171717] border border-[#FF6600]/40 rounded-3xl p-5 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl">

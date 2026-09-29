@@ -41,9 +41,9 @@ export const MonthlyHabitCalendar: React.FC = () => {
 
   for (let d = 1; d <= daysInMonth; d++) {
     const dayStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-    const dayObjs = dailyObjectives.filter((o) => o.date === dayStr);
+    const dayObjs = (dailyObjectives || []).filter((o) => o && o.date === dayStr);
     const total = dayObjs.length;
-    const completed = dayObjs.filter((o) => o.status === 'completado').length;
+    const completed = dayObjs.filter((o) => o && o.status === 'completado').length;
 
     let status: 'completed' | 'partial' | 'unfulfilled' | 'none' = 'none';
     if (total > 0) {

@@ -26,22 +26,20 @@ export const FinanzasView: React.FC<FinanzasViewProps> = ({
   onOpenExpenseModal,
   onOpenConfig
 }) => {
-  const {
-    financialSettings,
-    fixedDeductions,
-    expenses,
-    goals,
-    categories,
-    deleteExpense,
-    getAvailableFunds
-  } = useSayayinStore();
+  const store = useSayayinStore();
+  const financialSettings = store.financialSettings || { baseMonthlyIncome: 1250000 };
+  const fixedDeductions = store.fixedDeductions || [];
+  const expenses = store.expenses || [];
+  const goals = store.goals || [];
+  const categories = store.categories || [];
+  const { deleteExpense, getAvailableFunds } = store;
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('all');
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<'all' | 'gastos' | 'ahorros'>('all');
 
   const income = financialSettings.baseMonthlyIncome || 0;
-  const activeFixedDeductions = fixedDeductions.filter((d) => d.isActive);
+  const activeFixedDeductions = fixedDeductions.filter((d) => d && d.isActive);
   const totalFixed = activeFixedDeductions.reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
   const totalExpenses = expenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
   const availableFunds = getAvailableFunds();

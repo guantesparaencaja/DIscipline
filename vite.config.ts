@@ -8,8 +8,37 @@ export default defineConfig(() => {
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, '.'),
+        '@': path.resolve(import.meta.dirname, '.'),
       },
+    },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks(id: string) {
+            if (id.includes('recharts') || id.includes('react-is')) {
+              return 'recharts';
+            }
+            if (id.includes('@supabase')) {
+              return 'supabase';
+            }
+            if (id.includes('firebase')) {
+              return 'firebase';
+            }
+            if (id.includes('motion')) {
+              return 'motion';
+            }
+            if (id.includes('lucide-react')) {
+              return 'lucide';
+            }
+            if (id.includes('canvas-confetti')) {
+              return 'confetti';
+            }
+            if (id.includes('node_modules/react/') || id.includes('node_modules/react-dom/')) {
+              return 'react-vendor';
+            }
+          }
+        }
+      }
     },
     server: {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.

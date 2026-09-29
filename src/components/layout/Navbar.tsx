@@ -10,7 +10,8 @@ import {
   Zap,
   LogOut,
   User,
-  ShieldCheck
+  ShieldCheck,
+  History
 } from 'lucide-react';
 import { useSayayinStore } from '../../store/useSayayinStore';
 import { MOTIVATIONAL_QUOTES, TRANSFORMATIONS } from '../../lib/constants';
@@ -23,7 +24,15 @@ interface NavbarProps {
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ onOpenSettings, onOpenPowerBreakdown }) => {
-  const { profile, xpEvents, addToast } = useSayayinStore();
+  const {
+    profile,
+    xpEvents,
+    authUser,
+    setIsAuthModalOpen,
+    setIsNivelHistorialOpen,
+    addToast
+  } = useSayayinStore();
+  const safeXpEvents = xpEvents || [];
   const [quoteIndex, setQuoteIndex] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
   const [isWorkspaceUserConnected, setIsWorkspaceUserConnected] = useState(isWorkspaceConnected());
@@ -133,6 +142,22 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSettings, onOpenPowerBreak
             )}
           </div>
 
+          {/* Supabase Cloud Auth Button */}
+          <button
+            onClick={() => setIsAuthModalOpen(true)}
+            className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${
+              authUser
+                ? 'bg-emerald-950/60 text-emerald-300 border-emerald-800/80 hover:bg-emerald-900/60'
+                : 'bg-[#1e1e1e] text-zinc-300 border-zinc-700/60 hover:border-[#FF6600]/60 hover:text-white'
+            }`}
+            title={authUser ? `Conectado como ${authUser.email}` : 'Iniciar sesión en Supabase'}
+          >
+            <User className="w-3.5 h-3.5 text-[#FF6600]" />
+            <span className="hidden sm:inline font-mono">
+              {authUser ? authUser.email.split('@')[0] : 'Entrar'}
+            </span>
+          </button>
+
           {/* Notifications Dropdown */}
           <div className="relative">
             <button
@@ -141,7 +166,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSettings, onOpenPowerBreak
               aria-label="Notificaciones"
             >
               <Bell className="w-4 h-4" />
-              {xpEvents.length > 0 && (
+              {safeXpEvents.length > 0 && (
                 <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-[#FF6600] rounded-full ring-2 ring-[#121212]" />
               )}
             </button>
@@ -152,10 +177,10 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSettings, onOpenPowerBreak
                   <h4 className="text-xs font-bold text-zinc-200 uppercase tracking-wider flex items-center gap-1.5">
                     <Zap className="w-3.5 h-3.5 text-[#FF6600]" /> Historial de Ki & XP
                   </h4>
-                  <span className="text-[10px] text-zinc-400">{xpEvents.length} registros</span>
+                  <span className="text-[10px] text-zinc-400">{safeXpEvents.length} registros</span>
                 </div>
                 <div className="max-h-64 overflow-y-auto divide-y divide-zinc-800/60 my-1 text-xs">
-                  {xpEvents.slice(0, 8).map((ev) => (
+                  {safeXpEvents.slice(0, 8).map((ev) => (
                     <div key={ev.id} className="py-2 flex items-start justify-between gap-2">
                       <div className="flex-1">
                         <p className="text-zinc-200 line-clamp-1">{ev.description}</p>
@@ -166,9 +191,22 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSettings, onOpenPowerBreak
                       </span>
                     </div>
                   ))}
-                  {xpEvents.length === 0 && (
+                  {safeXpEvents.length === 0 && (
                     <p className="py-4 text-center text-zinc-500 text-xs">Aún no hay eventos de ki.</p>
                   )}
+                </div>
+
+                <div className="pt-2 border-t border-zinc-800">
+                  <button
+                    onClick={() => {
+                      setShowNotifications(false);
+                      setIsNivelHistorialOpen(true);
+                    }}
+                    className="w-full py-2 px-3 rounded-xl bg-zinc-800 hover:bg-[#FF6600] text-zinc-200 hover:text-black text-xs font-bold font-mono uppercase flex items-center justify-center gap-1.5 transition-colors shadow"
+                  >
+                    <History className="w-3.5 h-3.5" />
+                    <span>¿Por qué tengo este nivel?</span>
+                  </button>
                 </div>
               </div>
             )}

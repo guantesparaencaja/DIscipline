@@ -28,7 +28,11 @@ export const MetasView: React.FC<MetasViewProps> = ({
   onOpenExpenseModal,
   onOpenObjectiveModal
 }) => {
-  const { goals, dailyObjectives, plans, deleteGoal } = useSayayinStore();
+  const store = useSayayinStore();
+  const goals = store.goals || [];
+  const dailyObjectives = store.dailyObjectives || [];
+  const plans = store.plans || [];
+  const { deleteGoal } = store;
 
   const handleDeleteGoal = (id: string, title: string) => {
     const ok = window.confirm(`¿Seguro que deseas eliminar la meta:\n"${title}"?\nEsto eliminará también los planes tácticos asociados.`);

@@ -12,7 +12,9 @@ import {
   Settings,
   X,
   Zap,
-  BarChart3
+  BarChart3,
+  ShieldAlert,
+  Flame
 } from 'lucide-react';
 import { NavTab } from './Sidebar';
 import { useSayayinStore } from '../../store/useSayayinStore';
@@ -25,7 +27,8 @@ interface MobileNavProps {
 export const MobileNav: React.FC<MobileNavProps> = ({ activeTab, onSelectTab }) => {
   const [isMoreOpen, setIsMoreOpen] = useState(false);
   const { dailyObjectives } = useSayayinStore();
-  const pendingCount = dailyObjectives.filter((o) => o.status === 'pendiente').length;
+  const safeObjectives = dailyObjectives || [];
+  const pendingCount = safeObjectives.filter((o) => o && o.status === 'pendiente').length;
 
   const handleSelect = (tab: NavTab) => {
     onSelectTab(tab);
@@ -33,6 +36,8 @@ export const MobileNav: React.FC<MobileNavProps> = ({ activeTab, onSelectTab }) 
   };
 
   const moreItems: { id: NavTab; label: string; icon: React.ElementType; color?: string }[] = [
+    { id: 'habitos', label: 'Hábitos & Disciplina', icon: Flame, color: 'text-amber-500' },
+    { id: 'miedos', label: 'Miedos & Creencias', icon: ShieldAlert, color: 'text-purple-400' },
     { id: 'planes', label: 'Planes Tácticos', icon: FileText },
     { id: 'acciones', label: 'Acciones Rápidas', icon: Zap },
     { id: 'companero', label: 'Compañero Saiyajin', icon: Users, color: 'text-emerald-400' },
@@ -95,7 +100,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({ activeTab, onSelectTab }) 
           onClick={() => setIsMoreOpen(true)}
           className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-lg text-[10px] font-semibold transition-colors ${
             isMoreOpen ||
-            ['planes', 'acciones', 'companero', 'logros', 'estadisticas', 'calendario', 'configuracion'].includes(
+            ['habitos', 'miedos', 'planes', 'acciones', 'companero', 'logros', 'estadisticas', 'calendario', 'configuracion'].includes(
               activeTab
             )
               ? 'text-[#FF6600]'

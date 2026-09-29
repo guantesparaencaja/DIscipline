@@ -1,9 +1,19 @@
 import React from 'react';
 import { useSayayinStore } from '../../store/useSayayinStore';
-import { Zap, CheckCircle2, AlertTriangle, AlertCircle, Info, Sparkles, X, Trophy } from 'lucide-react';
+import {
+  Zap,
+  CheckCircle2,
+  AlertTriangle,
+  AlertCircle,
+  Info,
+  Sparkles,
+  X,
+  Trophy,
+  RotateCcw
+} from 'lucide-react';
 
 export const ToastContainer: React.FC = () => {
-  const { toasts, dismissToast } = useSayayinStore();
+  const { toasts, dismissToast, undoCompleteObjective } = useSayayinStore();
 
   if (toasts.length === 0) return null;
 
@@ -67,6 +77,18 @@ export const ToastContainer: React.FC = () => {
                 <p className="text-[11px] text-zinc-300 mt-0.5 line-clamp-2 leading-relaxed">
                   {toast.description}
                 </p>
+              )}
+              {toast.undoId && (
+                <button
+                  onClick={() => {
+                    undoCompleteObjective(toast.undoId!);
+                    dismissToast(toast.id);
+                  }}
+                  className="mt-2 px-2.5 py-1 rounded-lg bg-black/60 hover:bg-black text-[#FF6600] hover:text-white border border-[#FF6600]/40 text-[10px] font-bold font-mono uppercase flex items-center gap-1.5 transition-all shadow active:scale-95"
+                >
+                  <RotateCcw className="w-3 h-3 text-[#FF6600]" />
+                  <span>Deshacer Completado (10s)</span>
+                </button>
               )}
             </div>
 

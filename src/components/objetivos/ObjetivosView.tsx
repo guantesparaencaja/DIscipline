@@ -13,7 +13,8 @@ import {
   Trash2,
   Zap,
   Sparkles,
-  PiggyBank
+  PiggyBank,
+  RotateCcw
 } from 'lucide-react';
 import { DIFFICULTY_CONFIG, TIME_SLOT_CONFIG, SMART_OBJECTIVE_TEMPLATES } from '../../lib/constants';
 import { formatCOP, formatDateSpanish, getTodayDateString } from '../../lib/formatters';
@@ -29,6 +30,8 @@ export const ObjetivosView: React.FC<ObjetivosViewProps> = ({ onOpenObjectiveMod
     selectedDate,
     setSelectedDate,
     completeObjective,
+    undoCompleteObjective,
+    undoableObjective,
     reopenObjective,
     deleteObjective,
     syncObjectiveToCalendar,
@@ -43,7 +46,9 @@ export const ObjetivosView: React.FC<ObjetivosViewProps> = ({ onOpenObjectiveMod
   const todayStr = getTodayDateString();
 
   // Filter objectives
-  const filteredObjectives = dailyObjectives.filter((obj) => {
+  const safeObjectives = dailyObjectives || [];
+  const filteredObjectives = safeObjectives.filter((obj) => {
+    if (!obj) return false;
     const matchesDate = obj.date === selectedDate;
     const matchesSlot = activeSlotFilter === 'todos' || obj.timeSlot === activeSlotFilter;
     const matchesStatus =
@@ -291,8 +296,19 @@ export const ObjetivosView: React.FC<ObjetivosViewProps> = ({ onOpenObjectiveMod
                   </div>
                 </div>
 
-                {/* Right Action Icons */}
+                {/* Right Action Icons & Undo Button */}
                 <div className="flex items-center gap-1.5 self-end sm:self-center shrink-0">
+                  {undoableObjective?.id === obj.id && (
+                    <button
+                      onClick={() => undoCompleteObjective(obj.id)}
+                      className="px-2.5 py-1 bg-amber-950/80 hover:bg-amber-900 border border-amber-500/60 text-amber-300 text-[10px] font-bold font-mono rounded-lg flex items-center gap-1 transition-all animate-pulse shadow-lg"
+                      title="Deshacer completado dentro de los 10 segundos"
+                    >
+                      <RotateCcw className="w-3 h-3 text-[#FF6600]" />
+                      <span>Deshacer</span>
+                    </button>
+                  )}
+
                   <button
                     onClick={() => handleCalendarSync(obj)}
                     disabled={syncingId === obj.id}

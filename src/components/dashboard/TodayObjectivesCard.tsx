@@ -13,7 +13,8 @@ import {
   Zap,
   PiggyBank,
   Check,
-  AlertCircle
+  AlertCircle,
+  RotateCcw
 } from 'lucide-react';
 import { DIFFICULTY_CONFIG, TIME_SLOT_CONFIG } from '../../lib/constants';
 import { formatCOP, formatDateSpanish, getTodayDateString } from '../../lib/formatters';
@@ -28,6 +29,8 @@ export const TodayObjectivesCard: React.FC<TodayObjectivesCardProps> = ({ onAddO
     dailyObjectives,
     selectedDate,
     completeObjective,
+    undoCompleteObjective,
+    undoableObjective,
     reopenObjective,
     skipObjective,
     syncObjectiveToCalendar,
@@ -40,8 +43,8 @@ export const TodayObjectivesCard: React.FC<TodayObjectivesCardProps> = ({ onAddO
   const todayStr = getTodayDateString();
   const isViewingToday = selectedDate === todayStr;
 
-  const currentObjectives = dailyObjectives.filter((o) => o.date === selectedDate);
-  const completedCount = currentObjectives.filter((o) => o.status === 'completado').length;
+  const currentObjectives = (dailyObjectives || []).filter((o) => o && o.date === selectedDate);
+  const completedCount = currentObjectives.filter((o) => o && o.status === 'completado').length;
   const totalCount = currentObjectives.length;
   const completionPercentage = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
 
@@ -237,8 +240,20 @@ export const TodayObjectivesCard: React.FC<TodayObjectivesCardProps> = ({ onAddO
                           </div>
                         </div>
 
-                        {/* Action buttons (Sync & Skip) */}
-                        <div className="flex items-center gap-1 shrink-0 pt-0.5">
+                        {/* Action buttons (Sync & Skip & Undo) */}
+                        <div className="flex items-center gap-1.5 shrink-0 pt-0.5">
+                          {/* 10s Undo Button */}
+                          {undoableObjective?.id === obj.id && (
+                            <button
+                              onClick={() => undoCompleteObjective(obj.id)}
+                              className="px-2 py-1 bg-amber-950/80 hover:bg-amber-900 border border-amber-500/60 text-amber-300 text-[10px] font-bold font-mono rounded-lg flex items-center gap-1 transition-all animate-pulse shadow-lg"
+                              title="Deshacer completado dentro de los 10 segundos"
+                            >
+                              <RotateCcw className="w-3 h-3 text-[#FF6600]" />
+                              <span>Deshacer</span>
+                            </button>
+                          )}
+
                           {/* Sync to Google Calendar */}
                           <button
                             onClick={() => handleCalendarSync(obj)}

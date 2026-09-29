@@ -27,9 +27,9 @@ export const WeeklyCalendarStrip: React.FC = () => {
     const dayNumber = d.getDate();
 
     // Check objectives for this day
-    const dayObjectives = dailyObjectives.filter((o) => o.date === dateStr);
+    const dayObjectives = (dailyObjectives || []).filter((o) => o && o.date === dateStr);
     const total = dayObjectives.length;
-    const completed = dayObjectives.filter((o) => o.status === 'completado').length;
+    const completed = dayObjectives.filter((o) => o && o.status === 'completado').length;
 
     let status: 'completed' | 'partial' | 'empty' | 'none' = 'none';
     if (total > 0) {

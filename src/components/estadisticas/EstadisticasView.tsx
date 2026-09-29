@@ -15,20 +15,19 @@ import {
 } from 'recharts';
 
 export const EstadisticasView: React.FC = () => {
-  const {
-    financialSettings,
-    fixedDeductions,
-    expenses,
-    dailyObjectives,
-    getPowerBreakdown,
-    profile
-  } = useSayayinStore();
+  const store = useSayayinStore();
+  const financialSettings = store.financialSettings || { baseMonthlyIncome: 1250000 };
+  const fixedDeductions = store.fixedDeductions || [];
+  const expenses = store.expenses || [];
+  const dailyObjectives = store.dailyObjectives || [];
+  const { getPowerBreakdown } = store;
+  const profile = store.profile || { currentStreak: 0, currentLevel: 1 };
 
   const breakdown = getPowerBreakdown();
 
   const income = financialSettings.baseMonthlyIncome || 0;
   const totalFixed = fixedDeductions
-    .filter((d) => d.isActive)
+    .filter((d) => d && d.isActive)
     .reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
   const totalExpenses = expenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
 
@@ -44,9 +43,9 @@ export const EstadisticasView: React.FC = () => {
   ];
 
   // Completion by slot
-  const morningObjs = dailyObjectives.filter((o) => o.timeSlot === 'manana');
-  const afternoonObjs = dailyObjectives.filter((o) => o.timeSlot === 'tarde');
-  const nightObjs = dailyObjectives.filter((o) => o.timeSlot === 'noche');
+  const morningObjs = dailyObjectives.filter((o) => o && o.timeSlot === 'manana');
+  const afternoonObjs = dailyObjectives.filter((o) => o && o.timeSlot === 'tarde');
+  const nightObjs = dailyObjectives.filter((o) => o && o.timeSlot === 'noche');
 
   const slotStats = [
     {

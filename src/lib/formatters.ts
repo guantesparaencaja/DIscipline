@@ -1,5 +1,5 @@
 import { TRANSFORMATIONS, TRANSFORMATION_ORDER } from './constants';
-import { TransformationId, Goal, DailyObjective, Achievement } from '../types';
+import { TransformationId, Goal, DailyObjective, Achievement, Habit, HabitLog } from '../types';
 
 /**
  * Formats a numeric value to Colombian Peso (COP) with standard es-CO format:
@@ -48,21 +48,89 @@ export const formatDateSpanish = (dateStr: string, full = false): string => {
 };
 
 /**
- * Returns today's date formatted as YYYY-MM-DD in America/Bogota timezone
+ * Returns today's date formatted as YYYY-MM-DD in the given timezone (defaults to America/Bogota)
  */
-export const getTodayDateString = (): string => {
+export const getTodayDateString = (timeZone: string = 'America/Bogota'): string => {
   const now = new Date();
-  const options: Intl.DateTimeFormatOptions = {
-    timeZone: 'America/Bogota',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit'
-  };
-  const parts = new Intl.DateTimeFormat('en-CA', options).formatToParts(now);
-  const y = parts.find((p) => p.type === 'year')?.value;
-  const m = parts.find((p) => p.type === 'month')?.value;
-  const d = parts.find((p) => p.type === 'day')?.value;
-  return `${y}-${m}-${d}`;
+  try {
+    const options: Intl.DateTimeFormatOptions = {
+      timeZone: timeZone || 'America/Bogota',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    };
+    const parts = new Intl.DateTimeFormat('en-CA', options).formatToParts(now);
+    const y = parts.find((p) => p.type === 'year')?.value;
+    const m = parts.find((p) => p.type === 'month')?.value;
+    const d = parts.find((p) => p.type === 'day')?.value;
+    return `${y}-${m}-${d}`;
+  } catch (e) {
+    // Fallback if timezone string is invalid
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Bogota',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).formatToParts(now);
+    const y = parts.find((p) => p.type === 'year')?.value;
+    const m = parts.find((p) => p.type === 'month')?.value;
+    const d = parts.find((p) => p.type === 'day')?.value;
+    return `${y}-${m}-${d}`;
+  }
+};
+
+/**
+ * Computes difference in calendar days between two YYYY-MM-DD dates (d2 - d1).
+ */
+export const getCalendarDaysDifference = (dateStr1?: string, dateStr2?: string): number => {
+  if (!dateStr1 || !dateStr2) return 999;
+  const [y1, m1, d1] = dateStr1.split('-').map(Number);
+  const [y2, m2, d2] = dateStr2.split('-').map(Number);
+  const utc1 = Date.UTC(y1, (m1 || 1) - 1, d1 || 1);
+  const utc2 = Date.UTC(y2, (m2 || 1) - 1, d2 || 1);
+  const msPerDay = 1000 * 60 * 60 * 24;
+  return Math.round((utc2 - utc1) / msPerDay);
+};
+
+/**
+ * Calculates new streak according to gamification rules:
+ * - Same day: streak does not increment again
+ * - Exactly 1 day after lastActiveDate: streak increments by 1
+ * - Skipped 1 or more days (diff > 1) or no previous date: streak resets to 1
+ */
+export const calculateStreakOnActivity = (
+  currentStreak: number,
+  bestStreak: number,
+  lastActiveDate: string | undefined,
+  today: string
+): { newStreak: number; newBestStreak: number; isNewDay: boolean } => {
+  if (!lastActiveDate) {
+    return {
+      newStreak: 1,
+      newBestStreak: Math.max(bestStreak || 0, 1),
+      isNewDay: true
+    };
+  }
+
+  if (lastActiveDate === today) {
+    return {
+      newStreak: currentStreak || 1,
+      newBestStreak: Math.max(bestStreak || 0, currentStreak || 1),
+      isNewDay: false
+    };
+  }
+
+  const diff = getCalendarDaysDifference(lastActiveDate, today);
+  let newStreak = 1;
+  if (diff === 1) {
+    newStreak = (currentStreak || 0) + 1;
+  } else {
+    // Streak broken by skipping a day
+    newStreak = 1;
+  }
+
+  const newBestStreak = Math.max(bestStreak || 0, newStreak);
+  return { newStreak, newBestStreak, isNewDay: true };
 };
 
 /**
@@ -237,13 +305,137 @@ export interface PowerBreakdown {
     achievementsScore: number;
     streakMultiplier: number;
     levelScore: number;
+    fearsScore: number;
   };
 }
 
 /**
+ * Determines whether a habit is scheduled/due on a given YYYY-MM-DD date.
+ * - Diaria: every day.
+ * - Semanal / Personalizada: checks if habit.customDays includes day of week (0 = Sunday, 1 = Monday, ..., 6 = Saturday).
+ *   If customDays is empty or not set for semanal, defaults to Monday (1).
+ */
+export const isHabitDueOnDate = (habit: Habit, dateStr: string): boolean => {
+  if (!habit || !habit.isActive) return false;
+  if (habit.frequency === 'diaria') return true;
+
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dateObj = new Date(y, (m || 1) - 1, d || 1);
+  const dayOfWeek = dateObj.getDay(); // 0 = Domingo, 1 = Lunes, ..., 6 = Sábado
+
+  if (habit.frequency === 'semanal' || habit.frequency === 'personalizada') {
+    if (!habit.customDays || habit.customDays.length === 0) {
+      return dayOfWeek === 1; // Default to Monday
+    }
+    return habit.customDays.includes(dayOfWeek);
+  }
+
+  return true;
+};
+
+/**
+ * Calculates current streak, best streak, 30-day completion rate and total completions for a specific habit.
+ */
+export const calculateHabitStreak = (
+  habit: Habit,
+  allLogs: HabitLog[],
+  todayStr: string = getTodayDateString()
+): {
+  currentStreak: number;
+  bestStreak: number;
+  thirtyDayRate: number;
+  totalCompletions: number;
+} => {
+  if (!habit) {
+    return { currentStreak: 0, bestStreak: 0, thirtyDayRate: 0, totalCompletions: 0 };
+  }
+
+  const habitLogs = (allLogs || []).filter((l) => l && l.habitId === habit.id && l.completed);
+  const completedDates = new Set(habitLogs.map((l) => l.date));
+  const totalCompletions = completedDates.size;
+
+  // 1. Calculate 30-Day Rate
+  let dueIn30 = 0;
+  let doneIn30 = 0;
+  for (let i = 0; i < 30; i++) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const dStr = d.toISOString().split('T')[0];
+    if (isHabitDueOnDate(habit, dStr)) {
+      dueIn30++;
+      if (completedDates.has(dStr)) {
+        doneIn30++;
+      }
+    }
+  }
+  const thirtyDayRate = dueIn30 > 0 ? Math.min(100, Math.round((doneIn30 / dueIn30) * 100)) : 0;
+
+  // 2. Calculate Current Streak
+  let currentStreak = 0;
+  const completedToday = completedDates.has(todayStr);
+
+  if (completedToday) {
+    currentStreak++;
+    for (let i = 1; i <= 365; i++) {
+      const prev = new Date();
+      prev.setDate(prev.getDate() - i);
+      const prevStr = prev.toISOString().split('T')[0];
+      if (isHabitDueOnDate(habit, prevStr)) {
+        if (completedDates.has(prevStr)) {
+          currentStreak++;
+        } else {
+          break;
+        }
+      }
+    }
+  } else {
+    // Check backwards from yesterday
+    let streakFromYesterday = 0;
+    for (let i = 1; i <= 365; i++) {
+      const prev = new Date();
+      prev.setDate(prev.getDate() - i);
+      const prevStr = prev.toISOString().split('T')[0];
+      if (isHabitDueOnDate(habit, prevStr)) {
+        if (completedDates.has(prevStr)) {
+          streakFromYesterday++;
+        } else {
+          break;
+        }
+      }
+    }
+    currentStreak = streakFromYesterday;
+  }
+
+  // 3. Best streak calculation across history
+  // Scan all past 180 days to find the longest uninterrupted streak of completed due days
+  let bestStreak = currentStreak;
+  let runningStreak = 0;
+  for (let i = 180; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const dStr = d.toISOString().split('T')[0];
+    if (isHabitDueOnDate(habit, dStr)) {
+      if (completedDates.has(dStr)) {
+        runningStreak++;
+        if (runningStreak > bestStreak) bestStreak = runningStreak;
+      } else {
+        runningStreak = 0;
+      }
+    }
+  }
+
+  return {
+    currentStreak,
+    bestStreak: Math.max(bestStreak, currentStreak),
+    thirtyDayRate,
+    totalCompletions
+  };
+};
+
+/**
  * Real calculation engine for Power Scores:
  * - Poder Financiero (0–100)
- * - Poder de Hábitos/Disciplina (0–100)
+ * - Poder de Hábitos/Disciplina (0–100) usando habit_logs reales de los últimos 30 días
  * - Poder Base = 70% Financiero + 30% Hábitos
  * - Poder de Evolución (0–100)
  * - Poder Total = 70% Poder Base + 30% Poder de Evolución
@@ -258,7 +450,11 @@ export const calculateAllPowers = ({
   currentStreak,
   currentLevel,
   unlockedAchievementsCount,
-  totalAchievementsCount
+  totalAchievementsCount,
+  conqueredFearsCount = 0,
+  totalBraveryPoints = 0,
+  habits = [],
+  habitLogs = []
 }: {
   monthlyIncome: number;
   totalFixedDeductions: number;
@@ -270,10 +466,13 @@ export const calculateAllPowers = ({
   currentLevel: number;
   unlockedAchievementsCount: number;
   totalAchievementsCount: number;
+  conqueredFearsCount?: number;
+  totalBraveryPoints?: number;
+  habits?: Habit[];
+  habitLogs?: HabitLog[];
 }): PowerBreakdown => {
   // 1. Financial Power (0 - 100)
-  // Combines savings pace compliance and budget control (positive available funds ratio)
-  let savingsCompliance = 50; // default baseline
+  let savingsCompliance = 50;
   if (goals.length > 0) {
     const paces = goals.map((g) => {
       const p = calculateGoalPace(g);
@@ -285,7 +484,6 @@ export const calculateAllPowers = ({
     savingsCompliance = Math.round(paces.reduce((a, b) => a + b, 0) / paces.length);
   }
 
-  // Budget control score: how well income covers deductions and expenses
   const totalCommitments = totalFixedDeductions + totalExpensesThisMonth;
   let budgetControlScore = 50;
   if (monthlyIncome > 0) {
@@ -299,43 +497,93 @@ export const calculateAllPowers = ({
   const financialPower = Math.min(100, Math.max(0, Math.round(savingsCompliance * 0.6 + budgetControlScore * 0.4)));
 
   // 2. Habits / Discipline Power (0 - 100)
-  // Objectives completed in the last 30 days and current active streak
+  // Calculates habitsPower using REAL habit_logs from the last 30 days
+  const todayStr = getTodayDateString();
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
   const thirtyDaysStr = thirtyDaysAgo.toISOString().split('T')[0];
 
-  const recentObjectives = dailyObjectives.filter((obj) => obj.date >= thirtyDaysStr);
-  const totalRecent = recentObjectives.length;
-  const completedRecent = recentObjectives.filter((obj) => obj.status === 'completado').length;
+  const activeHabits = (habits || []).filter((h) => h && h.isActive);
+  const safeLogs = (habitLogs || []).filter((l) => l && l.completed);
 
-  const completionRate = totalRecent > 0 ? (completedRecent / totalRecent) * 100 : 50;
-  const streakBonus = Math.min(100, currentStreak * 4.5); // 21 days = ~95%
+  let completionRate = 50;
+  let habitStreak = currentStreak || 0;
+  let totalCompletions30d = 0;
+
+  if (activeHabits.length > 0) {
+    let totalDue = 0;
+    let totalDone = 0;
+    const loggedSet = new Set(safeLogs.map((l) => `${l.habitId}_${l.date}`));
+
+    for (let i = 0; i < 30; i++) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dStr = d.toISOString().split('T')[0];
+
+      activeHabits.forEach((habit) => {
+        if (isHabitDueOnDate(habit, dStr)) {
+          totalDue++;
+          if (loggedSet.has(`${habit.id}_${dStr}`)) {
+            totalDone++;
+          }
+        }
+      });
+    }
+
+    totalCompletions30d = totalDone;
+    completionRate = totalDue > 0 ? (totalDone / totalDue) * 100 : 50;
+
+    const habitStreaks = activeHabits.map(
+      (h) => calculateHabitStreak(h, safeLogs, todayStr).currentStreak
+    );
+    if (habitStreaks.length > 0) {
+      habitStreak = Math.max(currentStreak || 0, ...habitStreaks);
+    }
+  } else {
+    // Fallback if user has not registered any habits yet
+    const safeObjectives = dailyObjectives || [];
+    const recentObjectives = safeObjectives.filter((obj) => obj && obj.date && obj.date >= thirtyDaysStr);
+    const totalRecent = recentObjectives.length;
+    const completedRecent = recentObjectives.filter((obj) => obj && obj.status === 'completado').length;
+    completionRate = totalRecent > 0 ? (completedRecent / totalRecent) * 100 : 50;
+    totalCompletions30d = completedRecent;
+  }
+
+  const streakBonus = Math.min(100, (habitStreak || 0) * 4.5); // 21 days = ~95%
   const habitsPower = Math.min(100, Math.max(0, Math.round(completionRate * 0.65 + streakBonus * 0.35)));
 
   // 3. Poder Base = 70% Financiero + 30% Hábitos
   const basePower = Math.min(100, Math.max(0, Math.round(financialPower * 0.7 + habitsPower * 0.3)));
 
   // 4. Evolution Power (0 - 100)
-  // Goals progress, completed objectives, achievements, streaks and level
+  const safeGoals = goals || [];
   let goalsProgressScore = 20;
-  if (goals.length > 0) {
-    const avgProgress = goals.reduce((acc, g) => acc + (g.currentSavings / (g.targetAmount || 1)) * 100, 0) / goals.length;
+  if (safeGoals.length > 0) {
+    const avgProgress =
+      safeGoals.reduce((acc, g) => acc + ((Number(g.currentSavings) || 0) / (Number(g.targetAmount) || 1)) * 100, 0) /
+      safeGoals.length;
     goalsProgressScore = Math.min(100, avgProgress);
   }
   const achievementsScore =
     totalAchievementsCount > 0 ? Math.min(100, (unlockedAchievementsCount / totalAchievementsCount) * 100) : 0;
   const levelScore = Math.min(100, currentLevel * 8); // Level 12 = ~96
   const streakMultiplier = Math.min(100, currentStreak * 4);
+  // Bravery points and conquered fears feed the fearsScore of Evolution Power
+  const fearsScore = Math.min(
+    100,
+    Math.round(Math.min(70, Math.round(totalBraveryPoints * 0.7)) + (conqueredFearsCount || 0) * 20)
+  );
 
   const evolutionPower = Math.min(
     100,
     Math.max(
       0,
       Math.round(
-        goalsProgressScore * 0.3 +
+        goalsProgressScore * 0.25 +
           achievementsScore * 0.25 +
-          levelScore * 0.25 +
-          streakMultiplier * 0.2
+          levelScore * 0.2 +
+          streakMultiplier * 0.15 +
+          fearsScore * 0.15
       )
     )
   );
@@ -370,13 +618,15 @@ export const calculateAllPowers = ({
     habitsBreakdown: {
       thirtyDayCompletionRate: Math.round(completionRate),
       streakBonus: Math.round(streakBonus),
-      totalObjectivesDone: completedRecent
+      totalObjectivesDone: totalCompletions30d
     },
     evolutionBreakdown: {
       goalsProgressScore: Math.round(goalsProgressScore),
       achievementsScore: Math.round(achievementsScore),
       streakMultiplier: Math.round(streakMultiplier),
-      levelScore: Math.round(levelScore)
+      levelScore: Math.round(levelScore),
+      fearsScore: Math.round(fearsScore)
     }
   };
 };
+

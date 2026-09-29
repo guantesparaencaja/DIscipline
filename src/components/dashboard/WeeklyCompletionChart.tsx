@@ -26,8 +26,8 @@ export const WeeklyCompletionChart: React.FC = () => {
     const dateStr = `${y}-${m}-${day}`;
     const dayLabel = d.toLocaleDateString('es-CO', { weekday: 'short' }).replace('.', '');
 
-    const dayObjs = dailyObjectives.filter((o) => o.date === dateStr);
-    const completed = dayObjs.filter((o) => o.status === 'completado').length;
+    const dayObjs = (dailyObjectives || []).filter((o) => o && o.date === dateStr);
+    const completed = dayObjs.filter((o) => o && o.status === 'completado').length;
     const total = dayObjs.length;
 
     return {

@@ -8,7 +8,10 @@ interface PlanesViewProps {
 }
 
 export const PlanesView: React.FC<PlanesViewProps> = ({ onNavigateToGoals }) => {
-  const { plans, goals, toggleMilestone } = useSayayinStore();
+  const store = useSayayinStore();
+  const plans = store.plans || [];
+  const goals = store.goals || [];
+  const { toggleMilestone } = store;
 
   return (
     <div className="space-y-6 pb-20 md:pb-8">
@@ -43,8 +46,9 @@ export const PlanesView: React.FC<PlanesViewProps> = ({ onNavigateToGoals }) => 
         <div className="space-y-6">
           {plans.map((plan) => {
             const goal = goals.find((g) => g.id === plan.goalId);
-            const completedCount = plan.milestones.filter((m) => m.completed).length;
-            const progress = plan.milestones.length > 0 ? Math.round((completedCount / plan.milestones.length) * 100) : 0;
+            const milestones = plan.milestones || [];
+            const completedCount = milestones.filter((m) => m && m.completed).length;
+            const progress = milestones.length > 0 ? Math.round((completedCount / milestones.length) * 100) : 0;
 
             return (
               <div
@@ -62,7 +66,7 @@ export const PlanesView: React.FC<PlanesViewProps> = ({ onNavigateToGoals }) => 
 
                   <div className="text-left sm:text-right font-mono text-xs">
                     <span className="text-zinc-400">Progreso del Plan:</span>
-                    <div className="text-base font-bold text-white">{completedCount} de {plan.milestones.length} hitos ({progress}%)</div>
+                    <div className="text-base font-bold text-white">{completedCount} de {milestones.length} hitos ({progress}%)</div>
                   </div>
                 </div>
 
@@ -72,7 +76,7 @@ export const PlanesView: React.FC<PlanesViewProps> = ({ onNavigateToGoals }) => 
                     Hitos del Plan
                   </h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    {plan.milestones.map((m) => (
+                    {milestones.map((m) => (
                       <div
                         key={m.id}
                         onClick={() => toggleMilestone(plan.id, m.id)}
