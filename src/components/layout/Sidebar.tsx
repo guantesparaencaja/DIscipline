@@ -13,10 +13,12 @@ import {
   Users,
   Settings,
   Lock,
-  Flame
+  Flame,
+  Gift
 } from 'lucide-react';
 import { useSayayinStore } from '../../store/useSayayinStore';
 import { getTodayDateString } from '../../lib/formatters';
+import { PWAInstallButton } from '../ui/PWAInstallButton';
 
 export type NavTab =
   | 'inicio'
@@ -26,6 +28,7 @@ export type NavTab =
   | 'metas'
   | 'planes'
   | 'acciones'
+  | 'recompensas'
   | 'miedos'
   | 'logros'
   | 'estadisticas'
@@ -92,6 +95,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab }) => {
     { id: 'planes', label: 'Planes', icon: FileText },
     { id: 'acciones', label: 'Acciones Rápidas', icon: Zap },
     {
+      id: 'recompensas',
+      label: 'Recompensas',
+      icon: Gift,
+      subtitle: 'Canje con XP',
+      badge: (store.profile?.availableXp ?? store.profile?.currentXp ?? 0) > 0 ? `${store.profile?.availableXp ?? store.profile?.currentXp} XP` : undefined,
+      badgeColor: 'bg-amber-500/20 text-amber-300 border border-amber-500/40 font-mono font-bold'
+    },
+    {
       id: 'miedos',
       label: 'Miedos & Creencias',
       icon: ShieldAlert,
@@ -130,6 +141,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab }) => {
           return (
             <button
               key={item.id}
+              data-testid={`nav-tab-${item.id}`}
               onClick={() => onSelectTab(item.id)}
               className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition-all ${
                 isActive
@@ -161,6 +173,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab }) => {
             </button>
           );
         })}
+      </div>
+
+      {/* In-App Install Prompt */}
+      <div className="px-3 pb-2">
+        <PWAInstallButton className="w-full justify-center" variant="outline" />
       </div>
 
       {/* Racha & Ki Mini Footer */}

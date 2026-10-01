@@ -28,7 +28,8 @@ export interface Profile {
   email: string;
   displayName: string;
   avatarUrl?: string;
-  currentXp: number;
+  currentXp: number; // Cumulative total XP (drives currentLevel, never decreases)
+  availableXp?: number; // Spendable XP for personal rewards (decreases on redeem)
   currentLevel: number;
   totalPower: number;
   basePower: number;
@@ -71,6 +72,52 @@ export interface ExpenseCategory {
   icon: string;
   color: string;
   isDefault: boolean;
+  budgetLimit?: number; // Monthly budget limit in COP
+}
+
+export interface CategoryBudget {
+  id: string;
+  userId: string;
+  categoryId: string;
+  budgetLimit: number;
+  updatedAt: string;
+}
+
+export type ActionTargetType = 'meta' | 'plan' | 'objetivo' | 'habito' | 'general';
+
+export interface ActionItem {
+  id: string;
+  userId: string;
+  title: string;
+  description?: string;
+  targetType: ActionTargetType;
+  targetId?: string; // id of Goal, Plan, DailyObjective, or Habit
+  targetTitle?: string;
+  xpReward: number; // e.g. 15, 20, 30, 50 XP
+  isCompleted: boolean;
+  completedAt?: string;
+  createdAt: string;
+}
+
+export interface PersonalReward {
+  id: string;
+  userId: string;
+  title: string;
+  description?: string;
+  costXp: number; // XP needed to redeem
+  icon?: string;
+  category: string;
+  timesRedeemed: number;
+  createdAt: string;
+}
+
+export interface RewardRedemption {
+  id: string;
+  userId: string;
+  rewardId: string;
+  rewardTitle: string;
+  costXp: number;
+  redeemedAt: string;
 }
 
 export type PaymentMethod = 'efectivo' | 'tarjeta_debito' | 'tarjeta_credito' | 'transferencia';
@@ -273,6 +320,8 @@ export interface XPEvent {
     | 'fear_step'
     | 'fear_conquered'
     | 'habit'
+    | 'action'
+    | 'reward_redemption'
     | 'compensatory_undo';
   description: string;
   xpAmount: number;

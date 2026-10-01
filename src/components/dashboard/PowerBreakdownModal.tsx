@@ -30,23 +30,24 @@ export const PowerBreakdownModal: React.FC<PowerBreakdownModalProps> = ({ isOpen
   const nextTrans = breakdown.nextTransformationId ? TRANSFORMATIONS[breakdown.nextTransformationId] : null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200">
-      <div className="bg-[#1a1a1a] border border-[#333] rounded-3xl max-w-2xl w-full p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto space-y-6">
+    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-hidden animate-in fade-in duration-200">
+      <div className="bg-[#1a1a1a] border-t sm:border border-[#333] rounded-t-3xl sm:rounded-3xl max-w-2xl w-full p-5 sm:p-6 shadow-2xl relative max-h-[90dvh] flex flex-col overflow-hidden">
         {/* Modal Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-5 right-5 p-2 rounded-xl text-zinc-400 hover:text-white bg-[#252525] hover:bg-[#303030] transition-colors"
+          aria-label="Cerrar desglose de poder"
+          className="absolute top-5 right-5 p-2 rounded-xl text-zinc-400 hover:text-white bg-[#252525] hover:bg-[#303030] transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center focus-visible:ring-2 focus-visible:ring-[#FF6600]"
         >
           <X className="w-5 h-5" />
         </button>
 
         {/* Modal Header */}
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#FF6600] to-amber-600 flex items-center justify-center shadow-lg shadow-[#FF6600]/25">
+        <div className="flex items-center gap-3 shrink-0 pb-3 border-b border-zinc-800">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#FF6600] to-amber-600 flex items-center justify-center shadow-lg shadow-[#FF6600]/25 shrink-0">
             <Flame className="w-7 h-7 text-black fill-black" />
           </div>
           <div>
-            <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">
+            <span className="text-xs font-bold text-[#FF6600] uppercase tracking-widest font-mono">
               Auditoría de Ki del Guerrero
             </span>
             <h2 className="text-xl font-black text-white font-mono flex items-center gap-2">
@@ -54,6 +55,9 @@ export const PowerBreakdownModal: React.FC<PowerBreakdownModalProps> = ({ isOpen
             </h2>
           </div>
         </div>
+
+        {/* Scrollable Content */}
+        <div className="overflow-y-auto flex-1 space-y-5 pr-1 mt-3">
 
         {/* Formula Summary Hero Card */}
         <div className="bg-[#141414] border border-[#2d2d2d] rounded-2xl p-4 space-y-3">
@@ -171,13 +175,17 @@ export const PowerBreakdownModal: React.FC<PowerBreakdownModalProps> = ({ isOpen
           )}
         </div>
 
+        </div>
+
         {/* Action Button */}
-        <button
-          onClick={onClose}
-          className="w-full py-3 bg-[#FF6600] hover:bg-orange-500 text-black font-black text-xs uppercase tracking-widest rounded-xl transition-all shadow-lg active:scale-98"
-        >
-          Entendido, Volver al Entrenamiento
-        </button>
+        <div className="sticky bottom-0 bg-[#1a1a1a] pt-3 pb-1 border-t border-zinc-800 shrink-0">
+          <button
+            onClick={onClose}
+            className="w-full py-3 bg-[#FF6600] hover:bg-orange-500 text-black font-black text-xs uppercase tracking-widest rounded-xl transition-all shadow-lg active:scale-95 min-h-[44px] flex items-center justify-center font-mono focus-visible:ring-2 focus-visible:ring-[#FF6600]"
+          >
+            Entendido, Volver al Entrenamiento
+          </button>
+        </div>
       </div>
     </div>
   );

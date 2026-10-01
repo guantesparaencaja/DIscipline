@@ -17,15 +17,21 @@ import {
   TimeSlot,
   TransformationId,
   Fear,
+  FearStep,
   UndoableObjective,
   Habit,
   HabitLog,
-  HabitWithStats
+  HabitWithStats,
+  ActionItem,
+  PersonalReward,
+  RewardRedemption
 } from '../types';
 import {
   DEFAULT_EXPENSE_CATEGORIES,
   DEFAULT_FIXED_DEDUCTIONS,
   DEFAULT_HABITS,
+  DEFAULT_ACTIONS,
+  DEFAULT_PERSONAL_REWARDS,
   INITIAL_ACHIEVEMENTS,
   TRANSFORMATIONS
 } from '../lib/constants';
@@ -37,6 +43,7 @@ import {
   calculateStreakOnActivity,
   isHabitDueOnDate,
   calculateHabitStreak,
+  calculateGoalPace,
   PowerBreakdown
 } from '../lib/formatters';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
@@ -52,8 +59,10 @@ import {
   fearsRepository,
   achievementsRepository,
   partnerRepository,
-  habitsRepository
+  habitsRepository,
+  actionsRewardsRepository
 } from '../data';
+import { enqueueOfflineAction, getOfflineQueue, removeOfflineAction } from '../lib/offlineQueue';
 
 interface SayayinState {
   // Data
@@ -67,6 +76,9 @@ interface SayayinState {
   dailyObjectives: DailyObjective[];
   habits: Habit[];
   habitLogs: HabitLog[];
+  actions: ActionItem[];
+  personalRewards: PersonalReward[];
+  rewardRedemptions: RewardRedemption[];
   xpEvents: XPEvent[];
   achievements: Achievement[];
   userAchievements: UserAchievement[];
@@ -149,10 +161,33 @@ interface SayayinState {
   editGoal: (id: string, data: Partial<Goal>) => Promise<void>;
   deleteGoal: (id: string) => Promise<void>;
   addPlan: (data: Omit<Plan, 'id' | 'userId' | 'createdAt'>) => Promise<void>;
+  editPlan: (id: string, data: Partial<Plan>) => Promise<void>;
+  deletePlan: (id: string) => Promise<void>;
   toggleMilestone: (planId: string, milestoneId: string) => Promise<void>;
+  updatePlanStatus: (planId: string, status: Plan['status']) => Promise<void>;
+  generateObjectivesFromPlan: (planId: string) => Promise<number>;
+  generateSmartObjectivesForGoal: (goalId: string) => Promise<number>;
 
-  // Miedos & Dominio Mental
+  // Acciones Tácticas
+  addAction: (data: Omit<ActionItem, 'id' | 'userId' | 'createdAt' | 'isCompleted'>) => Promise<void>;
+  toggleAction: (id: string) => Promise<void>;
+  editAction: (id: string, data: Partial<ActionItem>) => Promise<void>;
+  deleteAction: (id: string) => Promise<void>;
+
+  // Recompensas Personales (XP Gastable)
+  addReward: (data: Omit<PersonalReward, 'id' | 'userId' | 'createdAt' | 'timesRedeemed'>) => Promise<void>;
+  editReward: (id: string, data: Partial<PersonalReward>) => Promise<void>;
+  deleteReward: (id: string) => Promise<void>;
+  redeemReward: (rewardId: string) => Promise<{ success: boolean; message: string }>;
+
+  // Presupuesto por Categoría
+  updateCategoryBudget: (categoryId: string, budgetLimit: number) => Promise<void>;
+
+  // Miedos & Dominio Mental (Escalera de Exposición 3-10 niveles)
   addFear: (data: Omit<Fear, 'id' | 'userId' | 'createdAt' | 'status'>) => Promise<void>;
+  editFear: (fearId: string, data: Partial<Fear>) => Promise<void>;
+  completeFearStep: (fearId: string, stepId: string) => Promise<void>;
+  reorderFearSteps: (fearId: string, newSteps: FearStep[]) => Promise<void>;
   toggleFearAction: (fearId: string, actionId: string) => Promise<void>;
   conquerFear: (fearId: string, reflection?: string) => Promise<void>;
   deleteFear: (fearId: string) => Promise<void>;
@@ -181,6 +216,7 @@ interface SayayinState {
   resetSupabasePassword: (email: string) => Promise<{ success: boolean; error?: string }>;
   initAuthListener: () => void;
   syncFromSupabase: () => Promise<void>;
+  syncOfflineQueueNow: () => Promise<{ success: boolean; synced: number; failed: number }>;
 
   // Internal
   recalculatePowersAndSave: () => void;
@@ -201,12 +237,14 @@ const getInitialData = () => {
     email: 'guerrero@sayayin.app',
     displayName: 'Guerrero Saiyajin',
     currentXp: 420,
+    availableXp: 420,
     currentLevel: 2,
     totalPower: 26,
     basePower: 28,
     evolutionPower: 22,
     financialPower: 30,
     habitsPower: 24,
+    braveryScore: 45,
     transformation: 'ssj',
     currentStreak: 4,
     bestStreak: 7,
@@ -405,10 +443,70 @@ const getInitialData = () => {
       category: 'escasez',
       impactScore: 8,
       status: 'enfrentando',
+      braveryScore: 25,
+      steps: [
+        {
+          id: 'step_1_1',
+          fearId: 'fear_001',
+          userId,
+          title: 'Nivel 1: Mirar el extracto bancario con calma y respiración diafragmática',
+          description: 'Aceptar los números reales sin juzgarse ni generar pánico.',
+          stepOrder: 1,
+          xpReward: 20,
+          braveryPoints: 10,
+          isCompleted: true,
+          completedAt: today
+        },
+        {
+          id: 'step_1_2',
+          fearId: 'fear_001',
+          userId,
+          title: 'Nivel 2: Registrar cada gasto durante 7 días seguidos sin omitir nada',
+          description: 'Tomar control visual del flujo diario de dinero en COP.',
+          stepOrder: 2,
+          xpReward: 25,
+          braveryPoints: 15,
+          isCompleted: true,
+          completedAt: today
+        },
+        {
+          id: 'step_1_3',
+          fearId: 'fear_001',
+          userId,
+          title: 'Nivel 3: Construir colchón de $300.000 COP en Fondo de Emergencia',
+          description: 'Apartar una reserva intocable de protección ante imprevistos.',
+          stepOrder: 3,
+          xpReward: 35,
+          braveryPoints: 20,
+          isCompleted: false
+        },
+        {
+          id: 'step_1_4',
+          fearId: 'fear_001',
+          userId,
+          title: 'Nivel 4: Realizar un gasto consciente de bienestar sin culpa',
+          description: 'Comprar algo saludable o formativo reconociendo tu merecimiento.',
+          stepOrder: 4,
+          xpReward: 40,
+          braveryPoints: 25,
+          isCompleted: false
+        },
+        {
+          id: 'step_1_5',
+          fearId: 'fear_001',
+          userId,
+          title: 'Nivel 5: Invertir $50.000 COP en un instrumento de renta fija sin dudar',
+          description: 'Dar el paso de ahorrador a inversor activo con disciplina.',
+          stepOrder: 5,
+          xpReward: 50,
+          braveryPoints: 30,
+          isCompleted: false
+        }
+      ],
       actions: [
-        { id: 'fa_1', title: 'Construir colchón de $300.000 COP en Fondo de Emergencia', completed: true, completedAt: today },
-        { id: 'fa_2', title: 'Auditar y registrar gastos durante 14 días seguidos sin omitir nada', completed: false },
-        { id: 'fa_3', title: 'Definir cuota semanal inamovible de recreación', completed: false }
+        { id: 'fa_1', title: 'Mirar el extracto bancario con calma', completed: true, completedAt: today },
+        { id: 'fa_2', title: 'Registrar cada gasto durante 7 días', completed: true, completedAt: today },
+        { id: 'fa_3', title: 'Construir colchón de $300.000 COP', completed: false }
       ],
       createdAt: today
     }
@@ -423,6 +521,9 @@ const getInitialData = () => {
     goals: initialGoals,
     plans: initialPlans,
     dailyObjectives: initialDailyObjectives,
+    actions: DEFAULT_ACTIONS,
+    personalRewards: DEFAULT_PERSONAL_REWARDS,
+    rewardRedemptions: [] as RewardRedemption[],
     xpEvents: initialXPEvents,
     achievements: INITIAL_ACHIEVEMENTS,
     userAchievements: initialUserAchievements,
@@ -453,10 +554,52 @@ const getInitialData = () => {
             }
           : null;
 
+      // Migrate fears ensuring ladder steps exist (3 to 10 levels)
+      const safeFears: Fear[] = Array.isArray(parsed.fears) && parsed.fears.length > 0
+        ? parsed.fears.map((f: Fear, fIdx: number) => {
+            if (Array.isArray(f.steps) && f.steps.length >= 3) {
+              return f;
+            }
+            // Generate steps if legacy actions or empty
+            const existingActs = Array.isArray(f.actions) ? f.actions : [];
+            const steps: FearStep[] = (existingActs.length >= 3 ? existingActs : [
+              { id: 'act_1', title: `Nivel 1: Reconocer y observar ${f.title}`, completed: false },
+              { id: 'act_2', title: `Nivel 2: Practicar acción preparatoria controlada`, completed: false },
+              { id: 'act_3', title: `Nivel 3: Ejecutar reto en entorno seguro`, completed: false },
+              { id: 'act_4', title: `Nivel 4: Consolidar victoria frente a testigos o números reales`, completed: false }
+            ]).map((act: any, idx: number) => ({
+              id: act.id || `fstep_${f.id || fIdx}_${idx + 1}`,
+              fearId: f.id || `fear_${fIdx}`,
+              userId: f.userId || userId,
+              title: act.title || `Nivel ${idx + 1}: Enfrentamiento gradual`,
+              description: act.description || 'Superar este escalón sin saltarse niveles.',
+              stepOrder: idx + 1,
+              xpReward: 20 + idx * 10,
+              braveryPoints: 10 + idx * 5,
+              isCompleted: !!act.completed,
+              completedAt: act.completedAt
+            }));
+
+            const braveryScore = steps.filter((s) => s.isCompleted).reduce((sum, s) => sum + s.braveryPoints, 0);
+
+            return {
+              ...f,
+              steps,
+              braveryScore: f.braveryScore || braveryScore,
+              status: steps.every((s) => s.isCompleted) ? 'superado' : (f.status || 'enfrentando')
+            };
+          })
+        : initialFears;
+
       return {
         ...defaultState,
         ...parsed,
-        profile: { ...defaultState.profile, ...(parsed.profile || {}) },
+        profile: {
+          ...defaultState.profile,
+          ...(parsed.profile || {}),
+          availableXp: parsed.profile?.availableXp ?? parsed.profile?.currentXp ?? defaultState.profile.currentXp,
+          braveryScore: parsed.profile?.braveryScore ?? defaultState.profile.braveryScore
+        },
         financialSettings: { ...defaultState.financialSettings, ...(parsed.financialSettings || {}) },
         fixedDeductions: Array.isArray(parsed.fixedDeductions) && parsed.fixedDeductions.length > 0 ? parsed.fixedDeductions : defaultState.fixedDeductions,
         categories: Array.isArray(parsed.categories) && parsed.categories.length > 0 ? parsed.categories : defaultState.categories,
@@ -464,12 +607,15 @@ const getInitialData = () => {
         goals: Array.isArray(parsed.goals) ? parsed.goals : defaultState.goals,
         plans: Array.isArray(parsed.plans) ? parsed.plans : defaultState.plans,
         dailyObjectives: Array.isArray(parsed.dailyObjectives) ? parsed.dailyObjectives : defaultState.dailyObjectives,
+        actions: Array.isArray(parsed.actions) && parsed.actions.length > 0 ? parsed.actions : DEFAULT_ACTIONS,
+        personalRewards: Array.isArray(parsed.personalRewards) && parsed.personalRewards.length > 0 ? parsed.personalRewards : DEFAULT_PERSONAL_REWARDS,
+        rewardRedemptions: Array.isArray(parsed.rewardRedemptions) ? parsed.rewardRedemptions : [],
         habits: Array.isArray(parsed.habits) && parsed.habits.length > 0 ? parsed.habits : defaultState.habits,
         habitLogs: Array.isArray(parsed.habitLogs) ? parsed.habitLogs : defaultState.habitLogs,
         xpEvents: Array.isArray(parsed.xpEvents) ? parsed.xpEvents : defaultState.xpEvents,
         achievements: INITIAL_ACHIEVEMENTS, // Ensure latest complete catalog is always used
         userAchievements: Array.isArray(parsed.userAchievements) ? parsed.userAchievements : defaultState.userAchievements,
-        fears: Array.isArray(parsed.fears) ? parsed.fears : defaultState.fears,
+        fears: safeFears,
         partner: safePartner,
         toasts: [],
         undoableObjective: null,
@@ -507,6 +653,9 @@ export const useSayayinStore = create<SayayinState>((set, get) => {
         goals: state.goals,
         plans: state.plans,
         dailyObjectives: state.dailyObjectives,
+        actions: state.actions,
+        personalRewards: state.personalRewards,
+        rewardRedemptions: state.rewardRedemptions,
         habits: state.habits,
         habitLogs: state.habitLogs,
         xpEvents: state.xpEvents,
@@ -578,6 +727,10 @@ export const useSayayinStore = create<SayayinState>((set, get) => {
       const totalExpensesThisMonth = expenses.reduce((sum, exp) => sum + (Number(exp.amount) || 0), 0);
       const availableFunds = monthlyIncome - totalFixed - totalExpensesThisMonth;
       const conqueredFearsCount = fears.filter((f) => f && f.status === 'superado').length;
+      const totalBraveryPoints = fears.reduce((acc, f) => {
+        const fearSteps = f.steps || [];
+        return acc + fearSteps.filter((s) => s && s.isCompleted).reduce((sAcc, s) => sAcc + (s.braveryPoints || 0), 0);
+      }, 0);
 
       return calculateAllPowers({
         monthlyIncome,
@@ -591,6 +744,7 @@ export const useSayayinStore = create<SayayinState>((set, get) => {
         unlockedAchievementsCount: userAchievements.length,
         totalAchievementsCount: achievements.length,
         conqueredFearsCount,
+        totalBraveryPoints,
         habits,
         habitLogs
       });
@@ -600,6 +754,11 @@ export const useSayayinStore = create<SayayinState>((set, get) => {
       const breakdown = get().getPowerBreakdown();
       const currentTrans = get().profile.transformation;
       const newTrans = breakdown.transformationId;
+      const fears = get().fears || [];
+      const totalBraveryPoints = fears.reduce((acc, f) => {
+        const fearSteps = f.steps || [];
+        return acc + fearSteps.filter((s) => s && s.isCompleted).reduce((sAcc, s) => sAcc + (s.braveryPoints || 0), 0);
+      }, 0);
 
       set((state) => {
         const updatedProfile: Profile = {
@@ -609,6 +768,7 @@ export const useSayayinStore = create<SayayinState>((set, get) => {
           evolutionPower: breakdown.evolutionPower,
           financialPower: breakdown.financialPower,
           habitsPower: breakdown.habitsPower,
+          braveryScore: totalBraveryPoints,
           transformation: newTrans
         };
         return { profile: updatedProfile };
@@ -874,6 +1034,7 @@ export const useSayayinStore = create<SayayinState>((set, get) => {
           profile: {
             ...s.profile,
             currentXp: newXP,
+            availableXp: (s.profile.availableXp ?? s.profile.currentXp) + xpReward,
             currentLevel: newLevel,
             currentStreak: streakUpdate.newStreak,
             bestStreak: streakUpdate.newBestStreak,
@@ -895,8 +1056,21 @@ export const useSayayinStore = create<SayayinState>((set, get) => {
         get().recalculatePowersAndSave();
         get().checkAchievements();
 
-        if (isSupabaseConfigured() && state.authUser) {
-          habitsRepository.setHabitLog(newLog).catch(console.warn);
+        const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+        if (isSupabaseConfigured() && state.authUser && isOnline) {
+          habitsRepository.setHabitLog(newLog).catch(() => {
+            enqueueOfflineAction({
+              dedupKey: 'toggle_habit_' + habitId + '_' + dateStr,
+              type: 'toggle_habit',
+              payload: newLog
+            });
+          });
+        } else {
+          enqueueOfflineAction({
+            dedupKey: 'toggle_habit_' + habitId + '_' + dateStr,
+            type: 'toggle_habit',
+            payload: newLog
+          });
         }
 
         get().addToast({
@@ -984,6 +1158,7 @@ export const useSayayinStore = create<SayayinState>((set, get) => {
           profile: {
             ...prevProfile,
             currentXp: newTotalXP,
+            availableXp: (prevProfile.availableXp ?? prevProfile.currentXp) + totalEarnedXP,
             currentLevel: newLevel,
             currentStreak: newStreak,
             bestStreak: newBestStreak,
@@ -1045,9 +1220,11 @@ export const useSayayinStore = create<SayayinState>((set, get) => {
           });
         }
 
-        // 7. Supabase persistence: db trigger handles XP, level, savings and streak on status update
+        // 7. Supabase persistence or Offline Queue
         const { authUser } = get();
-        if (authUser && isSupabaseConfigured()) {
+        const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+
+        if (authUser && isSupabaseConfigured() && isOnline) {
           try {
             await objectivesRepository.updateObjective(id, {
               status: 'completado',
@@ -1069,22 +1246,20 @@ export const useSayayinStore = create<SayayinState>((set, get) => {
               }));
             }
           } catch (err: any) {
-            // Rollback
-            set({
-              dailyObjectives: prevObjectives,
-              profile: prevProfile,
-              xpEvents: prevXpEvents,
-              expenses: prevExpenses,
-              goals: prevGoals,
-              undoableObjective: null
+            console.warn('Supabase offline/error, guardando en cola IndexedDB:', err);
+            await enqueueOfflineAction({
+              dedupKey: 'complete_obj_' + id,
+              type: 'complete_objective',
+              payload: { id, status: 'completado', completedAt: now }
             });
-            get().addToast({
-              type: 'error',
-              title: 'Error de sincronización con Supabase',
-              description: err?.message || 'No se pudo guardar el objetivo en la base de datos.'
-            });
-            return;
           }
+        } else {
+          // Sin conexión o sin Supabase directo: guardar en cola IndexedDB
+          await enqueueOfflineAction({
+            dedupKey: 'complete_obj_' + id,
+            type: 'complete_objective',
+            payload: { id, status: 'completado', completedAt: now }
+          });
         }
 
         get().checkAchievements();
@@ -1154,6 +1329,7 @@ export const useSayayinStore = create<SayayinState>((set, get) => {
         profile: {
           ...prevProfile,
           currentXp: revertedXP,
+          availableXp: Math.max(0, (prevProfile.availableXp ?? prevProfile.currentXp) - earnedXP),
           currentLevel: revertedLevel
         },
         xpEvents: [compensatoryEvent, ...prevXpEvents],
@@ -1336,21 +1512,27 @@ export const useSayayinStore = create<SayayinState>((set, get) => {
         description: `${newObj.title} (+${newObj.xpReward} XP)`
       });
 
-      if (authUser && isSupabaseConfigured()) {
+      const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+      if (authUser && isSupabaseConfigured() && isOnline) {
         try {
           const created = await objectivesRepository.createObjective(newObj);
           set((state) => ({
             dailyObjectives: state.dailyObjectives.map((o) => (o.id === newObj.id ? created : o))
           }));
         } catch (err: any) {
-          set({ dailyObjectives: prevObjectives });
-          get().addToast({
-            type: 'error',
-            title: 'Error al guardar objetivo en Supabase',
-            description: err?.message
+          console.warn('Error al guardar objetivo en Supabase, encolando offline:', err);
+          await enqueueOfflineAction({
+            dedupKey: 'add_obj_' + newObj.id,
+            type: 'add_objective',
+            payload: newObj
           });
-          return;
         }
+      } else {
+        await enqueueOfflineAction({
+          dedupKey: 'add_obj_' + newObj.id,
+          type: 'add_objective',
+          payload: newObj
+        });
       }
 
       get().recalculatePowersAndSave();
@@ -1440,7 +1622,8 @@ export const useSayayinStore = create<SayayinState>((set, get) => {
         description: `${newExpense.description}: ${formatCOP(newExpense.amount)}`
       });
 
-      if (authUser && isSupabaseConfigured()) {
+      const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+      if (authUser && isSupabaseConfigured() && isOnline) {
         try {
           const created = await expensesRepository.createExpense(newExpense);
           if (newExpense.isSaving && newExpense.goalId) {
@@ -1455,14 +1638,19 @@ export const useSayayinStore = create<SayayinState>((set, get) => {
             expenses: state.expenses.map((e) => (e.id === newExpense.id ? created : e))
           }));
         } catch (err: any) {
-          set({ expenses: prevExpenses, goals: prevGoals });
-          get().addToast({
-            type: 'error',
-            title: 'Error al guardar gasto en Supabase',
-            description: err?.message
+          console.warn('Error al guardar gasto en Supabase, encolando offline:', err);
+          await enqueueOfflineAction({
+            dedupKey: 'add_expense_' + newExpense.id,
+            type: 'add_expense',
+            payload: newExpense
           });
-          return;
         }
+      } else {
+        await enqueueOfflineAction({
+          dedupKey: 'add_expense_' + newExpense.id,
+          type: 'add_expense',
+          payload: newExpense
+        });
       }
 
       get().checkAchievements();
@@ -1563,21 +1751,27 @@ export const useSayayinStore = create<SayayinState>((set, get) => {
         description: `${newGoal.title} (${formatCOP(newGoal.targetAmount)})`
       });
 
-      if (authUser && isSupabaseConfigured()) {
+      const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+      if (authUser && isSupabaseConfigured() && isOnline) {
         try {
           const created = await goalsRepository.createGoal(newGoal);
           set((state) => ({
             goals: state.goals.map((g) => (g.id === newGoal.id ? created : g))
           }));
         } catch (err: any) {
-          set({ goals: prevGoals });
-          get().addToast({
-            type: 'error',
-            title: 'Error al guardar meta en Supabase',
-            description: err?.message
+          console.warn('Error al guardar meta en Supabase, encolando offline:', err);
+          await enqueueOfflineAction({
+            dedupKey: 'add_goal_' + newGoal.id,
+            type: 'add_goal',
+            payload: newGoal
           });
-          return;
         }
+      } else {
+        await enqueueOfflineAction({
+          dedupKey: 'add_goal_' + newGoal.id,
+          type: 'add_goal',
+          payload: newGoal
+        });
       }
 
       get().recalculatePowersAndSave();
@@ -1708,26 +1902,556 @@ export const useSayayinStore = create<SayayinState>((set, get) => {
       saveCache({ plans: get().plans });
     },
 
+    editPlan: async (id, data) => {
+      const prevPlans = get().plans;
+      set({
+        plans: prevPlans.map((p) => (p.id === id ? { ...p, ...data } : p))
+      });
+
+      const { authUser } = get();
+      if (authUser && isSupabaseConfigured()) {
+        try {
+          await plansRepository.updatePlan(id, data);
+        } catch (err: any) {
+          set({ plans: prevPlans });
+          get().addToast({
+            type: 'error',
+            title: 'Error al actualizar plan',
+            description: err?.message
+          });
+          return;
+        }
+      }
+
+      saveCache({ plans: get().plans });
+    },
+
+    deletePlan: async (id) => {
+      const prevPlans = get().plans;
+      set({ plans: prevPlans.filter((p) => p.id !== id) });
+
+      const { authUser } = get();
+      if (authUser && isSupabaseConfigured()) {
+        try {
+          await plansRepository.deletePlan(id);
+        } catch (err: any) {
+          set({ plans: prevPlans });
+          get().addToast({
+            type: 'error',
+            title: 'Error al eliminar plan',
+            description: err?.message
+          });
+          return;
+        }
+      }
+
+      saveCache({ plans: get().plans });
+    },
+
+    updatePlanStatus: async (planId, status) => {
+      const prevPlans = get().plans;
+      set({
+        plans: prevPlans.map((p) => (p.id === planId ? { ...p, status } : p))
+      });
+
+      const { authUser } = get();
+      if (authUser && isSupabaseConfigured()) {
+        try {
+          await plansRepository.updatePlan(planId, { status });
+        } catch (err: any) {
+          set({ plans: prevPlans });
+          get().addToast({
+            type: 'error',
+            title: 'Error al actualizar estado del plan',
+            description: err?.message
+          });
+          return;
+        }
+      }
+
+      get().addToast({
+        type: 'info',
+        title: 'Estado del plan actualizado',
+        description: `Plan marcado como: ${status.toUpperCase()}`
+      });
+      saveCache({ plans: get().plans });
+    },
+
+    generateObjectivesFromPlan: async (planId) => {
+      const plan = get().plans.find((p) => p.id === planId);
+      if (!plan) return 0;
+      const pendingMilestones = (plan.milestones || []).filter((m) => !m.completed);
+      if (pendingMilestones.length === 0) {
+        get().addToast({
+          type: 'info',
+          title: 'Plan al día',
+          description: 'No hay hitos pendientes en este plan para generar objetivos.'
+        });
+        return 0;
+      }
+
+      const todayStr = getTodayDateString();
+      let createdCount = 0;
+
+      for (const m of pendingMilestones) {
+        await get().addObjective({
+          title: `[${plan.title}] Hito: ${m.title}`,
+          date: m.targetDate || todayStr,
+          timeSlot: 'manana',
+          difficulty: 'normal',
+          xpReward: 20,
+          goalId: plan.goalId,
+          isPartnerVisible: true,
+          recurrence: 'una_vez'
+        });
+        createdCount++;
+      }
+
+      get().addToast({
+        type: 'success',
+        title: `${createdCount} Objetivos Diarios generados`,
+        description: `Se han derivado del plan "${plan.title}" con éxito.`
+      });
+
+      return createdCount;
+    },
+
+    generateSmartObjectivesForGoal: async (goalId) => {
+      const goal = get().goals.find((g) => g.id === goalId);
+      if (!goal) return 0;
+      const pace = calculateGoalPace(goal);
+      const todayStr = getTodayDateString();
+      const dailyAmount = Math.max(5000, Math.round(pace.dailyRequiredPace));
+
+      await get().addObjective({
+        title: `Separar cuota de ahorro para: ${goal.title}`,
+        date: todayStr,
+        timeSlot: 'manana',
+        difficulty: dailyAmount > 50000 ? 'dificil' : 'normal',
+        xpReward: dailyAmount > 50000 ? 40 : 20,
+        savingAmount: dailyAmount,
+        goalId: goal.id,
+        isPartnerVisible: true,
+        recurrence: 'diaria'
+      });
+
+      get().addToast({
+        type: 'success',
+        title: 'Objetivo inteligente generado',
+        description: `Ritmo diario requerido: ${formatCOP(dailyAmount)} (${pace.statusMessage})`
+      });
+
+      return 1;
+    },
+
     // ==========================================
-    // MIEDOS & DOMINIO MENTAL CRUD
+    // ACCIONES TÁCTICAS CRUD
+    // ==========================================
+    addAction: async (data) => {
+      const prevActions = get().actions || [];
+      const { authUser, profile } = get();
+
+      const newAction: ActionItem = {
+        ...data,
+        id: 'act_' + Date.now(),
+        userId: authUser ? authUser.id : profile.id,
+        isCompleted: false,
+        createdAt: getTodayDateString()
+      };
+
+      set({ actions: [newAction, ...prevActions] });
+      get().addToast({
+        type: 'success',
+        title: 'Acción táctica vinculada',
+        description: `${newAction.title} (+${newAction.xpReward} XP)`
+      });
+
+      const { authUser: currentAuth } = get();
+      if (currentAuth && isSupabaseConfigured()) {
+        try {
+          const created = await actionsRewardsRepository.createAction(newAction);
+          set((state) => ({
+            actions: state.actions.map((a) => (a.id === newAction.id ? created : a))
+          }));
+        } catch (err: any) {
+          console.warn('Supabase createAction warning:', err);
+        }
+      }
+
+      saveCache({ actions: get().actions });
+    },
+
+    toggleAction: async (id) => {
+      const prevActions = get().actions || [];
+      const targetAction = prevActions.find((a) => a.id === id);
+      if (!targetAction) return;
+
+      const willBeCompleted = !targetAction.isCompleted;
+      const now = new Date().toISOString();
+      const prevProfile = get().profile;
+      const earnedXP = willBeCompleted ? targetAction.xpReward : 0;
+
+      const newTotalXP = (prevProfile.currentXp || 0) + earnedXP;
+      const newAvailableXP = (prevProfile.availableXp ?? prevProfile.currentXp ?? 0) + earnedXP;
+      const newLevel = getLevelFromXP(newTotalXP);
+
+      set((state) => ({
+        actions: state.actions.map((a) =>
+          a.id === id ? { ...a, isCompleted: willBeCompleted, completedAt: willBeCompleted ? now : undefined } : a
+        ),
+        profile: earnedXP > 0
+          ? { ...state.profile, currentXp: newTotalXP, availableXp: newAvailableXP, currentLevel: newLevel }
+          : state.profile
+      }));
+
+      // Si se completó, otorgar feedback y avanzar entidad vinculada
+      if (willBeCompleted && earnedXP > 0) {
+        const newXpEvent: XPEvent = {
+          id: 'xp_' + Date.now(),
+          userId: prevProfile.id,
+          sourceType: 'action',
+          description: `Acción cumplida: ${targetAction.title}`,
+          xpAmount: earnedXP,
+          createdAt: getTodayDateString()
+        };
+
+        set((state) => ({
+          xpEvents: [newXpEvent, ...state.xpEvents]
+        }));
+
+        try {
+          confetti({ particleCount: 50, spread: 60, origin: { y: 0.7 } });
+        } catch (e) {}
+
+        get().addToast({
+          type: 'xp',
+          title: `+${earnedXP} XP de Acción`,
+          description: targetAction.title,
+          xpAmount: earnedXP
+        });
+
+        // Avanzar la entidad ligada según su targetType
+        if (targetAction.targetType === 'objetivo' && targetAction.targetId) {
+          const matchObj = get().dailyObjectives.find((o) => o.id === targetAction.targetId);
+          if (matchObj && matchObj.status !== 'completado') {
+            get().completeObjective(matchObj.id);
+          }
+        } else if (targetAction.targetType === 'meta' && targetAction.targetId) {
+          // Si está ligada a una meta, avanza el objetivo diario relacionado con esa meta
+          const matchObj = get().dailyObjectives.find(
+            (o) => o.goalId === targetAction.targetId && o.status !== 'completado'
+          );
+          if (matchObj) {
+            get().completeObjective(matchObj.id);
+          } else {
+            // O avanza el plan táctico asociado a la meta
+            const matchPlan = get().plans.find((p) => p.goalId === targetAction.targetId);
+            if (matchPlan && matchPlan.milestones.length > 0) {
+              const firstPending = matchPlan.milestones.find((m) => !m.completed);
+              if (firstPending) {
+                get().toggleMilestone(matchPlan.id, firstPending.id);
+              }
+            }
+          }
+        } else if (targetAction.targetType === 'habito' && targetAction.targetId) {
+          const todayStr = getTodayDateString();
+          get().toggleHabitDay(targetAction.targetId, todayStr);
+        } else if (targetAction.targetType === 'plan' && targetAction.targetId) {
+          const matchPlan = get().plans.find((p) => p.id === targetAction.targetId);
+          if (matchPlan && matchPlan.milestones.length > 0) {
+            const firstPending = matchPlan.milestones.find((m) => !m.completed);
+            if (firstPending) {
+              get().toggleMilestone(matchPlan.id, firstPending.id);
+            }
+          }
+        }
+      }
+
+      const { authUser } = get();
+      if (authUser && isSupabaseConfigured()) {
+        try {
+          await actionsRewardsRepository.updateAction(id, {
+            isCompleted: willBeCompleted,
+            completedAt: willBeCompleted ? now : undefined
+          });
+        } catch (err: any) {
+          console.warn('Supabase updateAction warning:', err);
+        }
+      }
+
+      get().checkAchievements();
+      get().recalculatePowersAndSave();
+      saveCache({
+        actions: get().actions,
+        profile: get().profile,
+        xpEvents: get().xpEvents
+      });
+    },
+
+    editAction: async (id, data) => {
+      const prevActions = get().actions || [];
+      set({
+        actions: prevActions.map((a) => (a.id === id ? { ...a, ...data } : a))
+      });
+
+      const { authUser } = get();
+      if (authUser && isSupabaseConfigured()) {
+        try {
+          await actionsRewardsRepository.updateAction(id, data);
+        } catch (err: any) {
+          console.warn('Supabase updateAction warning:', err);
+        }
+      }
+
+      saveCache({ actions: get().actions });
+    },
+
+    deleteAction: async (id) => {
+      const prevActions = get().actions || [];
+      set({ actions: prevActions.filter((a) => a.id !== id) });
+
+      const { authUser } = get();
+      if (authUser && isSupabaseConfigured()) {
+        try {
+          await actionsRewardsRepository.deleteAction(id);
+        } catch (err: any) {
+          console.warn('Supabase deleteAction warning:', err);
+        }
+      }
+
+      saveCache({ actions: get().actions });
+    },
+
+    // ==========================================
+    // RECOMPENSAS PERSONALES (XP GASTABLE)
+    // ==========================================
+    addReward: async (data) => {
+      const prevRewards = get().personalRewards || [];
+      const { authUser, profile } = get();
+
+      const newReward: PersonalReward = {
+        ...data,
+        id: 'rew_' + Date.now(),
+        userId: authUser ? authUser.id : profile.id,
+        timesRedeemed: 0,
+        createdAt: getTodayDateString()
+      };
+
+      set({ personalRewards: [...prevRewards, newReward] });
+      get().addToast({
+        type: 'success',
+        title: 'Recompensa personal creada',
+        description: `${newReward.title} (${newReward.costXp} XP)`
+      });
+
+      const { authUser: currentAuth } = get();
+      if (currentAuth && isSupabaseConfigured()) {
+        try {
+          const created = await actionsRewardsRepository.createReward(newReward);
+          set((state) => ({
+            personalRewards: state.personalRewards.map((r) => (r.id === newReward.id ? created : r))
+          }));
+        } catch (err: any) {
+          console.warn('Supabase createReward warning:', err);
+        }
+      }
+
+      saveCache({ personalRewards: get().personalRewards });
+    },
+
+    editReward: async (id, data) => {
+      const prevRewards = get().personalRewards || [];
+      set({
+        personalRewards: prevRewards.map((r) => (r.id === id ? { ...r, ...data } : r))
+      });
+
+      const { authUser } = get();
+      if (authUser && isSupabaseConfigured()) {
+        try {
+          await actionsRewardsRepository.updateReward(id, data);
+        } catch (err: any) {
+          console.warn('Supabase updateReward warning:', err);
+        }
+      }
+
+      saveCache({ personalRewards: get().personalRewards });
+    },
+
+    deleteReward: async (id) => {
+      const prevRewards = get().personalRewards || [];
+      set({ personalRewards: prevRewards.filter((r) => r.id !== id) });
+
+      const { authUser } = get();
+      if (authUser && isSupabaseConfigured()) {
+        try {
+          await actionsRewardsRepository.deleteReward(id);
+        } catch (err: any) {
+          console.warn('Supabase deleteReward warning:', err);
+        }
+      }
+
+      saveCache({ personalRewards: get().personalRewards });
+    },
+
+    redeemReward: async (rewardId) => {
+      const prevProfile = get().profile;
+      const rewards = get().personalRewards || [];
+      const reward = rewards.find((r) => r.id === rewardId);
+      if (!reward) return { success: false, message: 'Recompensa no encontrada' };
+
+      const available = prevProfile.availableXp ?? prevProfile.currentXp ?? 0;
+      if (available < reward.costXp) {
+        get().addToast({
+          type: 'warning',
+          title: 'XP Disponible Insuficiente',
+          description: `Necesitas ${reward.costXp} XP disponible. Actualmente tienes ${available} XP.`
+        });
+        return { success: false, message: 'XP insuficiente' };
+      }
+
+      // IMPORTANTE: el canje descuenta XP disponible sin bajar el nivel (separar XP total de XP gastable)
+      const newAvailable = available - reward.costXp;
+      const now = new Date().toISOString();
+
+      const redemption: RewardRedemption = {
+        id: 'red_' + Date.now(),
+        userId: prevProfile.id,
+        rewardId: reward.id,
+        rewardTitle: reward.title,
+        costXp: reward.costXp,
+        redeemedAt: now
+      };
+
+      const xpEvent: XPEvent = {
+        id: 'xp_' + Date.now(),
+        userId: prevProfile.id,
+        sourceType: 'reward_redemption',
+        description: `Canje de recompensa: ${reward.title} (-${reward.costXp} XP disponible)`,
+        xpAmount: -reward.costXp,
+        createdAt: getTodayDateString()
+      };
+
+      set((state) => ({
+        profile: { ...state.profile, availableXp: newAvailable },
+        personalRewards: state.personalRewards.map((r) =>
+          r.id === rewardId ? { ...r, timesRedeemed: (r.timesRedeemed || 0) + 1 } : r
+        ),
+        rewardRedemptions: [redemption, ...state.rewardRedemptions],
+        xpEvents: [xpEvent, ...state.xpEvents]
+      }));
+
+      try {
+        confetti({ particleCount: 90, spread: 80, origin: { y: 0.6 } });
+      } catch (e) {}
+
+      get().addToast({
+        type: 'success',
+        title: '¡Recompensa Canjeada!',
+        description: `Disfruta: "${reward.title}". Tu Nivel ${prevProfile.currentLevel} se mantiene intacto.`
+      });
+
+      const { authUser } = get();
+      if (authUser && isSupabaseConfigured()) {
+        try {
+          await actionsRewardsRepository.recordRedemption(redemption);
+          await actionsRewardsRepository.updateReward(reward.id, {
+            timesRedeemed: (reward.timesRedeemed || 0) + 1
+          });
+        } catch (err: any) {
+          console.warn('Supabase recordRedemption warning:', err);
+        }
+      }
+
+      saveCache({
+        profile: get().profile,
+        personalRewards: get().personalRewards,
+        rewardRedemptions: get().rewardRedemptions,
+        xpEvents: get().xpEvents
+      });
+
+      return { success: true, message: 'Canje exitoso' };
+    },
+
+    // ==========================================
+    // PRESUPUESTO POR CATEGORÍA
+    // ==========================================
+    updateCategoryBudget: async (categoryId, budgetLimit) => {
+      set((state) => ({
+        categories: state.categories.map((c) =>
+          c.id === categoryId ? { ...c, budgetLimit } : c
+        )
+      }));
+
+      get().addToast({
+        type: 'success',
+        title: 'Presupuesto de categoría actualizado',
+        description: `Nuevo límite mensual: ${formatCOP(budgetLimit)}`
+      });
+
+      saveCache({ categories: get().categories });
+    },
+
+    // ==========================================
+    // MIEDOS & ESCALERA DE EXPOSICIÓN GRADUAL
     // ==========================================
     addFear: async (data) => {
       const prevFears = get().fears;
       const { authUser, profile } = get();
 
+      // Ensure 3 to 10 ladder steps exist
+      let steps: FearStep[] = (data.steps && data.steps.length >= 3)
+        ? data.steps.map((s, idx) => ({ ...s, stepOrder: idx + 1 }))
+        : [
+            {
+              id: 'st_1_' + Date.now(),
+              fearId: '',
+              title: 'Nivel 1: Observar y registrar el temor sin juicio',
+              description: 'Nombrar el obstáculo con honestidad.',
+              stepOrder: 1,
+              xpReward: 20,
+              braveryPoints: 10,
+              isCompleted: false
+            },
+            {
+              id: 'st_2_' + Date.now(),
+              fearId: '',
+              title: 'Nivel 2: Acción preparatoria en entorno seguro',
+              description: 'Dar un primer paso controlado.',
+              stepOrder: 2,
+              xpReward: 30,
+              braveryPoints: 15,
+              isCompleted: false
+            },
+            {
+              id: 'st_3_' + Date.now(),
+              fearId: '',
+              title: 'Nivel 3: Enfrentamiento real decisivo',
+              description: 'Consolidar la victoria y superar el bloqueo.',
+              stepOrder: 3,
+              xpReward: 50,
+              braveryPoints: 25,
+              isCompleted: false
+            }
+          ];
+
+      const newFearId = 'fear_' + Date.now();
+      steps = steps.map((s) => ({ ...s, fearId: newFearId, userId: authUser ? authUser.id : profile.id }));
+
       const newFear: Fear = {
         ...data,
-        id: 'fear_' + Date.now(),
+        id: newFearId,
         userId: authUser ? authUser.id : profile.id,
         status: 'enfrentando',
+        braveryScore: 0,
+        steps,
         createdAt: getTodayDateString()
       };
 
       set({ fears: [newFear, ...prevFears] });
       get().addToast({
         type: 'info',
-        title: 'Miedo identificado y listo para combate',
-        description: `${newFear.title} (${newFear.category.toUpperCase()})`
+        title: 'Miedo identificado con escalera de exposición',
+        description: `${newFear.title} (${newFear.steps.length} niveles)`
       });
 
       if (authUser && isSupabaseConfigured()) {
@@ -1752,6 +2476,178 @@ export const useSayayinStore = create<SayayinState>((set, get) => {
       saveCache({ fears: get().fears });
     },
 
+    editFear: async (fearId, data) => {
+      const prevFears = get().fears;
+      const target = prevFears.find((f) => f.id === fearId);
+      if (!target) return;
+
+      const updatedFear: Fear = {
+        ...target,
+        ...data,
+        steps: data.steps ? data.steps.map((s, idx) => ({ ...s, stepOrder: idx + 1 })) : target.steps
+      };
+
+      set({
+        fears: prevFears.map((f) => (f.id === fearId ? updatedFear : f))
+      });
+
+      const { authUser } = get();
+      if (authUser && isSupabaseConfigured()) {
+        try {
+          await fearsRepository.updateFear(fearId, data);
+          if (data.steps) {
+            await fearsRepository.saveFearSteps(fearId, authUser.id, updatedFear.steps);
+          }
+        } catch (err: any) {
+          console.warn('Supabase editFear warning:', err);
+        }
+      }
+
+      get().recalculatePowersAndSave();
+      saveCache({ fears: get().fears });
+    },
+
+    completeFearStep: async (fearId, stepId) => {
+      const prevFears = get().fears;
+      const prevProfile = get().profile;
+      const targetFear = prevFears.find((f) => f.id === fearId);
+      if (!targetFear) return;
+
+      const steps = targetFear.steps || [];
+      const stepIdx = steps.findIndex((s) => s.id === stepId);
+      if (stepIdx === -1) return;
+
+      const targetStep = steps[stepIdx];
+      if (targetStep.isCompleted) return; // Ya completado
+
+      // CRITERIO DE ACEPTACIÓN ESTRICTO: NO SE PUEDE SALTAR NIVELES
+      // Solo se puede completar el siguiente en orden
+      const canComplete = steps.slice(0, stepIdx).every((s) => s.isCompleted);
+      if (!canComplete) {
+        get().addToast({
+          type: 'warning',
+          title: 'Escalera de Exposición: Orden Estricto',
+          description: `No puedes saltar al Nivel ${stepIdx + 1}. Debes completar los niveles anteriores en secuencia.`
+        });
+        return;
+      }
+
+      const earnedXP = targetStep.xpReward || 25;
+      const bravery = targetStep.braveryPoints || 10;
+      const now = new Date().toISOString();
+
+      // Verificar si es el ÚLTIMO nivel de la escalera
+      const isLastStep = stepIdx === steps.length - 1;
+      const bonusConqueredXP = isLastStep ? 100 : 0;
+      const totalEarnedXP = earnedXP + bonusConqueredXP;
+
+      const newTotalXP = (prevProfile.currentXp || 0) + totalEarnedXP;
+      const newAvailableXP = (prevProfile.availableXp ?? prevProfile.currentXp ?? 0) + totalEarnedXP;
+      const newLevel = getLevelFromXP(newTotalXP);
+
+      const nextSteps = steps.map((s, idx) =>
+        idx === stepIdx ? { ...s, isCompleted: true, completedAt: now } : s
+      );
+
+      const updatedFear: Fear = {
+        ...targetFear,
+        status: isLastStep ? 'superado' : targetFear.status,
+        conqueredAt: isLastStep ? now : targetFear.conqueredAt,
+        braveryScore: (targetFear.braveryScore || 0) + bravery,
+        steps: nextSteps
+      };
+
+      const newXpEvent: XPEvent = {
+        id: 'xp_' + Date.now(),
+        userId: prevProfile.id,
+        sourceType: isLastStep ? 'fear_conquered' : 'fear_step',
+        description: isLastStep
+          ? `🏆 ¡Miedo Superado (+100 XP Bonus): ${targetFear.title}!`
+          : `Escalón de Valentía: ${targetStep.title} (+${bravery} valentía)`,
+        xpAmount: totalEarnedXP,
+        createdAt: getTodayDateString()
+      };
+
+      set((state) => ({
+        fears: state.fears.map((f) => (f.id === fearId ? updatedFear : f)),
+        profile: {
+          ...state.profile,
+          currentXp: newTotalXP,
+          availableXp: newAvailableXP,
+          currentLevel: newLevel,
+          braveryScore: (state.profile.braveryScore || 0) + bravery
+        },
+        xpEvents: [newXpEvent, ...state.xpEvents]
+      }));
+
+      try {
+        confetti({
+          particleCount: isLastStep ? 140 : 60,
+          spread: isLastStep ? 100 : 60,
+          origin: { y: 0.6 }
+        });
+      } catch (e) {}
+
+      if (isLastStep) {
+        get().addToast({
+          type: 'achievement',
+          title: '🏆 ¡MIEDO SUPERADO! (+100 XP)',
+          description: `Has conquistado los ${steps.length} escalones de "${targetFear.title}". ¡Desbloqueaste el logro Valiente!`
+        });
+      } else {
+        get().addToast({
+          type: 'xp',
+          title: `+${earnedXP} XP & +${bravery} Valentía`,
+          description: targetStep.title,
+          xpAmount: earnedXP
+        });
+      }
+
+      const { authUser } = get();
+      if (authUser && isSupabaseConfigured()) {
+        try {
+          await fearsRepository.updateFearStep(stepId, true, now);
+          await fearsRepository.updateFear(fearId, {
+            status: updatedFear.status,
+            conqueredAt: updatedFear.conqueredAt,
+            braveryScore: updatedFear.braveryScore
+          });
+        } catch (err: any) {
+          console.warn('Supabase step complete warning:', err);
+        }
+      }
+
+      get().checkAchievements();
+      get().recalculatePowersAndSave();
+      saveCache({
+        fears: get().fears,
+        profile: get().profile,
+        xpEvents: get().xpEvents
+      });
+    },
+
+    reorderFearSteps: async (fearId, newSteps) => {
+      const prevFears = get().fears;
+      const targetFear = prevFears.find((f) => f.id === fearId);
+      if (!targetFear) return;
+
+      const orderedSteps = newSteps.map((s, idx) => ({ ...s, stepOrder: idx + 1 }));
+      set({
+        fears: prevFears.map((f) => (f.id === fearId ? { ...f, steps: orderedSteps } : f))
+      });
+
+      const { authUser } = get();
+      if (authUser && isSupabaseConfigured()) {
+        try {
+          await fearsRepository.saveFearSteps(fearId, authUser.id, orderedSteps);
+        } catch (err: any) {
+          console.warn('Supabase reorder steps error:', err);
+        }
+      }
+
+      saveCache({ fears: get().fears });
+    },
+
     toggleFearAction: async (fearId, actionId) => {
       const prevFears = get().fears;
       const prevProfile = get().profile;
@@ -1765,7 +2661,8 @@ export const useSayayinStore = create<SayayinState>((set, get) => {
       set((state) => {
         const nextFears = state.fears.map((f) => {
           if (f.id !== fearId) return f;
-          const nextActs = f.actions.map((act) => {
+          const acts = f.actions || [];
+          const nextActs = acts.map((act) => {
             if (act.id !== actionId) return act;
             const willBeCompleted = !act.completed;
             if (willBeCompleted) {
@@ -1785,7 +2682,8 @@ export const useSayayinStore = create<SayayinState>((set, get) => {
       });
 
       if (earnedXP > 0) {
-        const newTotalXP = prevProfile.currentXp + earnedXP;
+        const newTotalXP = (prevProfile.currentXp || 0) + earnedXP;
+        const newAvailableXP = (prevProfile.availableXp ?? prevProfile.currentXp ?? 0) + earnedXP;
         const newLevel = getLevelFromXP(newTotalXP);
         const newXpEvent: XPEvent = {
           id: 'xp_' + Date.now(),
@@ -1797,7 +2695,12 @@ export const useSayayinStore = create<SayayinState>((set, get) => {
         };
 
         set((state) => ({
-          profile: { ...state.profile, currentXp: newTotalXP, currentLevel: newLevel },
+          profile: {
+            ...state.profile,
+            currentXp: newTotalXP,
+            availableXp: newAvailableXP,
+            currentLevel: newLevel
+          },
           xpEvents: [newXpEvent, ...state.xpEvents]
         }));
 
@@ -1818,13 +2721,7 @@ export const useSayayinStore = create<SayayinState>((set, get) => {
         try {
           await fearsRepository.updateFear(fearId, { actions: updatedActions });
         } catch (err: any) {
-          set({ fears: prevFears, profile: prevProfile, xpEvents: prevXpEvents });
-          get().addToast({
-            type: 'error',
-            title: 'Error al actualizar acción de miedo',
-            description: err?.message
-          });
-          return;
+          console.warn('Supabase toggleFearAction warning:', err);
         }
       }
 
@@ -1842,7 +2739,8 @@ export const useSayayinStore = create<SayayinState>((set, get) => {
       if (!targetFear || targetFear.status === 'superado') return;
 
       const earnedXP = 500;
-      const newTotalXP = prevProfile.currentXp + earnedXP;
+      const newTotalXP = (prevProfile.currentXp || 0) + earnedXP;
+      const newAvailableXP = (prevProfile.availableXp ?? prevProfile.currentXp ?? 0) + earnedXP;
       const newLevel = getLevelFromXP(newTotalXP);
       const todayStr = getTodayDateString();
       const conqueredAt = new Date().toISOString();
@@ -1864,11 +2762,17 @@ export const useSayayinStore = create<SayayinState>((set, get) => {
                 status: 'superado',
                 conqueredAt,
                 reflection: reflection || f.reflection,
-                actions: f.actions.map((a) => ({ ...a, completed: true }))
+                steps: (f.steps || []).map((s) => ({ ...s, isCompleted: true, completedAt: s.completedAt || conqueredAt })),
+                actions: (f.actions || []).map((a) => ({ ...a, completed: true }))
               }
             : f
         ),
-        profile: { ...state.profile, currentXp: newTotalXP, currentLevel: newLevel },
+        profile: {
+          ...state.profile,
+          currentXp: newTotalXP,
+          availableXp: newAvailableXP,
+          currentLevel: newLevel
+        },
         xpEvents: [newXpEvent, ...state.xpEvents]
       }));
 
@@ -1892,13 +2796,7 @@ export const useSayayinStore = create<SayayinState>((set, get) => {
             reflection: reflection || targetFear.reflection
           });
         } catch (err: any) {
-          set({ fears: prevFears, profile: prevProfile, xpEvents: prevXpEvents });
-          get().addToast({
-            type: 'error',
-            title: 'Error al guardar victoria de miedo en Supabase',
-            description: err?.message
-          });
-          return;
+          console.warn('Supabase conquerFear warning:', err);
         }
       }
 
@@ -2657,6 +3555,84 @@ export const useSayayinStore = create<SayayinState>((set, get) => {
       }
     },
 
+    syncOfflineQueueNow: async () => {
+      const items = await getOfflineQueue();
+      if (items.length === 0) return { success: true, synced: 0, failed: 0 };
+      let synced = 0;
+      let failed = 0;
+
+      for (const item of items) {
+        try {
+          if (item.type === 'complete_objective') {
+            await objectivesRepository.updateObjective(item.payload.id, {
+              status: item.payload.status,
+              completedAt: item.payload.completedAt
+            });
+          } else if (item.type === 'add_objective') {
+            await objectivesRepository.createObjective(item.payload);
+          } else if (item.type === 'delete_objective') {
+            await objectivesRepository.deleteObjective(item.payload.id);
+          } else if (item.type === 'toggle_habit') {
+            await habitsRepository.setHabitLog(item.payload);
+          } else if (item.type === 'add_expense') {
+            await expensesRepository.createExpense(item.payload);
+          } else if (item.type === 'delete_expense') {
+            await expensesRepository.deleteExpense(item.payload.id);
+          } else if (item.type === 'add_goal') {
+            await goalsRepository.createGoal(item.payload);
+          } else if (item.type === 'delete_goal') {
+            await goalsRepository.deleteGoal(item.payload.id);
+          } else if (item.type === 'add_plan') {
+            await plansRepository.createPlan(item.payload);
+          } else if (item.type === 'add_action') {
+            await actionsRewardsRepository.createAction(item.payload);
+          } else if (item.type === 'toggle_action') {
+            await actionsRewardsRepository.updateAction(item.payload.id, {
+              isCompleted: item.payload.isCompleted,
+              completedAt: item.payload.completedAt
+            });
+          } else if (item.type === 'complete_fear_step') {
+            await fearsRepository.updateFearStep(item.payload.stepId, true, item.payload.completedAt);
+          } else if (item.type === 'redeem_reward') {
+            await actionsRewardsRepository.recordRedemption(item.payload.redemption);
+          }
+          await removeOfflineAction(item.id);
+          synced++;
+        } catch (err) {
+          console.warn('[SyncQueue] Error al sincronizar acción individual:', item, err);
+          failed++;
+        }
+      }
+
+      if (synced > 0) {
+        get().addToast({
+          type: 'success',
+          title: 'Sincronización Offline Completada',
+          description: `Se sincronizaron ${synced} acciones en orden y sin duplicados.`
+        });
+        const { authUser } = get();
+        if (authUser) {
+          try {
+            const remoteProfile = await profileRepository.getProfile(authUser.id);
+            if (remoteProfile) {
+              set((state) => ({
+                profile: {
+                  ...state.profile,
+                  currentXp: remoteProfile.currentXp,
+                  currentLevel: remoteProfile.currentLevel,
+                  currentStreak: remoteProfile.currentStreak,
+                  bestStreak: remoteProfile.bestStreak,
+                  lastActiveDate: remoteProfile.lastActiveDate
+                }
+              }));
+            }
+          } catch (e) {}
+        }
+      }
+
+      return { success: failed === 0, synced, failed };
+    },
+
     // ==========================================
     // ACHIEVEMENTS VERIFICATION ENGINE
     // ==========================================
@@ -2801,6 +3777,9 @@ export const useSayayinStore = create<SayayinState>((set, get) => {
           case 'fear_conquered':
             shouldUnlock = fears.some((f) => f.status === 'superado');
             break;
+          case 'valiente':
+            shouldUnlock = fears.some((f) => f.status === 'superado');
+            break;
           case 'partner_linked':
             shouldUnlock = partner !== null;
             break;
@@ -2824,6 +3803,7 @@ export const useSayayinStore = create<SayayinState>((set, get) => {
 
         const totalEarnedXP = newlyUnlocked.reduce((sum, a) => sum + a.xpReward, 0);
         const newTotalXP = profile.currentXp + totalEarnedXP;
+        const newAvailableXP = (profile.availableXp ?? profile.currentXp) + totalEarnedXP;
         const newLevel = getLevelFromXP(newTotalXP);
 
         const newXpEvents: XPEvent[] = newlyUnlocked.map((ach) => ({
@@ -2841,6 +3821,7 @@ export const useSayayinStore = create<SayayinState>((set, get) => {
           profile: {
             ...state.profile,
             currentXp: newTotalXP,
+            availableXp: newAvailableXP,
             currentLevel: newLevel
           }
         }));

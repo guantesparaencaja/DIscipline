@@ -73,13 +73,20 @@ export const CompaneroView: React.FC = () => {
           url: window.location.href
         })
         .catch(() => {
-          // Fallback direct WhatsApp URL
-          const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
-          window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
+          navigator.clipboard?.writeText(shareText);
+          addToast({
+            type: 'info',
+            title: 'Enlace copiado para compartir',
+            description: 'Pégalo en WhatsApp o donde prefieras.'
+          });
         });
     } else {
-      const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
-      window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
+      navigator.clipboard?.writeText(shareText);
+      addToast({
+        type: 'info',
+        title: 'Mensaje copiado al portapapeles',
+        description: 'Pégalo en WhatsApp para invitar a tu compañero.'
+      });
     }
   };
 

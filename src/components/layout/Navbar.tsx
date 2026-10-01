@@ -145,6 +145,8 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSettings, onOpenPowerBreak
           {/* Supabase Cloud Auth Button */}
           <button
             onClick={() => setIsAuthModalOpen(true)}
+            data-testid="auth-modal-btn"
+            aria-label={authUser ? `Conectado como ${authUser.email}` : 'Entrar al Radar'}
             className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${
               authUser
                 ? 'bg-emerald-950/60 text-emerald-300 border-emerald-800/80 hover:bg-emerald-900/60'

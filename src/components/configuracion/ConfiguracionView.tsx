@@ -18,8 +18,31 @@ import {
   Shield,
   History,
   Lock,
-  Eye
+  Eye,
+  Bell,
+  Clock,
+  Smartphone,
+  WifiOff,
+  Wifi,
+  Moon,
+  Sun,
+  Sunset
 } from 'lucide-react';
+import { PWAInstallButton } from '../ui/PWAInstallButton';
+import {
+  getReminderSettings,
+  saveReminderSettings,
+  requestNotificationPermission,
+  getNotificationPermissionStatus,
+  sendTestNotification,
+  ReminderSettings
+} from '../../lib/notifications';
+import {
+  getOfflineQueue,
+  getOfflineQueueCount,
+  clearOfflineQueue,
+  QueuedSyncAction
+} from '../../lib/offlineQueue';
 import {
   isSupabaseConfigured,
   updateSupabaseCredentials,
@@ -36,11 +59,125 @@ export const ConfiguracionView: React.FC = () => {
     editFixedDeduction,
     deleteFixedDeduction,
     profile,
+    dailyObjectives,
     updateGlobalPrivacySetting,
     setIsNivelHistorialOpen,
     resetToInitialDemo,
+    syncOfflineQueueNow,
     addToast
   } = useSayayinStore();
+
+  // Reminder and Push Notification settings
+  const [reminders, setReminders] = useState<ReminderSettings>(() => getReminderSettings());
+  const [permStatus, setPermStatus] = useState<NotificationPermission>(() => getNotificationPermissionStatus());
+  const [testingNotification, setTestingNotification] = useState(false);
+
+  // Offline Sync Queue state
+  const [offlineItems, setOfflineItems] = useState<QueuedSyncAction[]>([]);
+  const [offlineCount, setOfflineCount] = useState(0);
+  const [isSyncingQueue, setIsSyncingQueue] = useState(false);
+
+  React.useEffect(() => {
+    const refreshQueue = async () => {
+      const count = await getOfflineQueueCount();
+      setOfflineCount(count);
+      const items = await getOfflineQueue();
+      setOfflineItems(items);
+    };
+    refreshQueue();
+
+    const handler = () => refreshQueue();
+    window.addEventListener('sayayin-offline-queue-changed', handler);
+    window.addEventListener('online', handler);
+    return () => {
+      window.removeEventListener('sayayin-offline-queue-changed', handler);
+      window.removeEventListener('online', handler);
+    };
+  }, []);
+
+  const handleUpdateReminders = (updates: Partial<ReminderSettings>) => {
+    const next = saveReminderSettings(updates);
+    setReminders(next);
+    addToast({
+      type: 'success',
+      title: 'Configuración de recordatorios guardada',
+      description: 'Los avisos por franja horaria están sincronizados.'
+    });
+  };
+
+  const handleRequestPermission = async () => {
+    const res = await requestNotificationPermission();
+    setPermStatus(res);
+    if (res === 'granted') {
+      addToast({
+        type: 'success',
+        title: '¡Permiso de notificaciones concedido!',
+        description: 'Recibirás avisos de tus objetivos según tus franjas horarias.'
+      });
+    } else {
+      addToast({
+        type: 'warning',
+        title: 'Permiso denegado',
+        description: 'Habilita las notificaciones en los ajustes de tu navegador.'
+      });
+    }
+  };
+
+  const handleTestNotification = async () => {
+    setTestingNotification(true);
+    try {
+      const ok = await sendTestNotification(dailyObjectives || []);
+      if (ok) {
+        addToast({
+          type: 'success',
+          title: 'Notificación de prueba enviada',
+          description: 'Revisa tu centro de notificaciones.'
+        });
+      } else {
+        addToast({
+          type: 'warning',
+          title: 'No se pudo enviar la notificación',
+          description: 'Verifica los permisos en tu navegador.'
+        });
+      }
+    } finally {
+      setTestingNotification(false);
+    }
+  };
+
+  const handleSyncOffline = async () => {
+    if (!navigator.onLine) {
+      addToast({
+        type: 'warning',
+        title: 'Sin conexión a internet',
+        description: 'Conéctate a una red para subir las acciones pendientes.'
+      });
+      return;
+    }
+    setIsSyncingQueue(true);
+    try {
+      await syncOfflineQueueNow();
+      const count = await getOfflineQueueCount();
+      setOfflineCount(count);
+      const items = await getOfflineQueue();
+      setOfflineItems(items);
+    } finally {
+      setIsSyncingQueue(false);
+    }
+  };
+
+  const handleClearOffline = async () => {
+    if (window.confirm('¿Seguro que deseas descartar la cola de acciones offline?')) {
+      await clearOfflineQueue();
+      setOfflineCount(0);
+      setOfflineItems([]);
+      addToast({
+        type: 'info',
+        title: 'Cola offline vaciada',
+        description: 'Se eliminaron las acciones pendientes locales.'
+      });
+    }
+  };
 
   // Financial Form
   const [baseIncomeStr, setBaseIncomeStr] = useState(
@@ -83,7 +220,11 @@ export const ConfiguracionView: React.FC = () => {
     const income = Number(baseIncomeStr.replace(/\D/g, ''));
     const target = Number(emergencyTargetStr.replace(/\D/g, ''));
     if (!income || income <= 0) {
-      alert('Ingresa un ingreso mensual válido');
+      addToast({
+        type: 'warning',
+        title: 'Monto inválido',
+        description: 'Ingresa un ingreso mensual válido mayor a 0 COP'
+      });
       return;
     }
     updateFinancialSettings(income, target);
@@ -93,7 +234,11 @@ export const ConfiguracionView: React.FC = () => {
     e.preventDefault();
     const amount = Number(newDeductionAmount.replace(/\D/g, ''));
     if (!newDeductionName.trim() || !amount || amount <= 0) {
-      alert('Ingresa un nombre y monto válido');
+      addToast({
+        type: 'warning',
+        title: 'Datos incompletos',
+        description: 'Ingresa un nombre y monto válido mayor a 0 COP'
+      });
       return;
     }
     addFixedDeduction({
@@ -505,7 +650,295 @@ export const ConfiguracionView: React.FC = () => {
         )}
       </div>
 
-      {/* 6. Restablecer Datos de Demostración */}
+      {/* 6. Recordatorios por Franja Horaria & Web Push */}
+      <div className="bg-[#1e1e1e] border border-[#2b2b2b] rounded-3xl p-6 shadow-xl space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-[#FF6600]/15 border border-[#FF6600]/30 flex items-center justify-center text-[#FF6600] shrink-0">
+              <Bell className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-base font-black text-white font-mono flex items-center gap-2">
+                Recordatorios por Horario & Web Push
+              </h3>
+              <p className="text-xs text-zinc-400 mt-0.5">
+                Avisos locales y Web Push que te alertan cuántos objetivos restan por franja horaria.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            {permStatus !== 'granted' && (
+              <button
+                type="button"
+                onClick={handleRequestPermission}
+                className="px-3.5 py-2 bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs rounded-xl font-mono uppercase tracking-wider transition-colors min-h-[44px]"
+              >
+                Solicitar Permiso Push
+              </button>
+            )}
+
+            <button
+              type="button"
+              disabled={testingNotification}
+              onClick={handleTestNotification}
+              className="px-3.5 py-2 bg-[#252525] hover:bg-[#303030] text-zinc-200 border border-zinc-700/60 font-bold text-xs rounded-xl font-mono transition-colors min-h-[44px]"
+            >
+              Probar Notificación
+            </button>
+          </div>
+        </div>
+
+        {/* Master Switch & Status */}
+        <div className="bg-[#161616] p-4 rounded-2xl border border-zinc-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <span className="text-xs font-bold text-white block font-mono">
+              Notificaciones del Radar Activas
+            </span>
+            <span className="text-[11px] text-zinc-400 font-mono">
+              Estado en navegador: <strong className={permStatus === 'granted' ? 'text-emerald-400' : 'text-amber-400'}>
+                {permStatus === 'granted' ? 'Permiso Concedido' : permStatus === 'denied' ? 'Permiso Denegado' : 'Sin solicitar'}
+              </strong>
+            </span>
+          </div>
+
+          <label className="relative inline-flex items-center cursor-pointer min-h-[44px]">
+            <input
+              type="checkbox"
+              checked={reminders.enabled}
+              onChange={(e) => handleUpdateReminders({ enabled: e.target.checked })}
+              className="sr-only peer"
+            />
+            <div className="w-11 h-6 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[12px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#FF6600]"></div>
+          </label>
+        </div>
+
+        {/* Franjas Horarias Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 text-xs font-mono">
+          {/* Mañana */}
+          <div className="p-4 rounded-2xl bg-[#161616] border border-zinc-800 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-white flex items-center gap-1.5">
+                <Sun className="w-4 h-4 text-amber-400" /> Turno Mañana
+              </span>
+              <input
+                type="checkbox"
+                checked={reminders.morningEnabled}
+                onChange={(e) => handleUpdateReminders({ morningEnabled: e.target.checked })}
+                className="w-4 h-4 accent-[#FF6600] rounded"
+              />
+            </div>
+            <p className="text-[11px] text-zinc-400">
+              Notifica cuántos objetivos matutinos tienes pendientes.
+            </p>
+            <div className="flex items-center gap-2 pt-1">
+              <Clock className="w-3.5 h-3.5 text-zinc-500" />
+              <input
+                type="time"
+                value={reminders.morningTime}
+                onChange={(e) => handleUpdateReminders({ morningTime: e.target.value })}
+                className="bg-[#111] border border-zinc-700 rounded-lg px-2 py-1 text-white text-xs font-mono focus:border-[#FF6600] focus:outline-none"
+              />
+            </div>
+          </div>
+
+          {/* Tarde */}
+          <div className="p-4 rounded-2xl bg-[#161616] border border-zinc-800 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-white flex items-center gap-1.5">
+                <Sunset className="w-4 h-4 text-orange-400" /> Turno Tarde
+              </span>
+              <input
+                type="checkbox"
+                checked={reminders.afternoonEnabled}
+                onChange={(e) => handleUpdateReminders({ afternoonEnabled: e.target.checked })}
+                className="w-4 h-4 accent-[#FF6600] rounded"
+              />
+            </div>
+            <p className="text-[11px] text-zinc-400">
+              Notifica cuántos objetivos vespertinos faltan por cumplir.
+            </p>
+            <div className="flex items-center gap-2 pt-1">
+              <Clock className="w-3.5 h-3.5 text-zinc-500" />
+              <input
+                type="time"
+                value={reminders.afternoonTime}
+                onChange={(e) => handleUpdateReminders({ afternoonTime: e.target.value })}
+                className="bg-[#111] border border-zinc-700 rounded-lg px-2 py-1 text-white text-xs font-mono focus:border-[#FF6600] focus:outline-none"
+              />
+            </div>
+          </div>
+
+          {/* Noche */}
+          <div className="p-4 rounded-2xl bg-[#161616] border border-zinc-800 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-white flex items-center gap-1.5">
+                <Moon className="w-4 h-4 text-purple-400" /> Turno Noche
+              </span>
+              <input
+                type="checkbox"
+                checked={reminders.nightEnabled}
+                onChange={(e) => handleUpdateReminders({ nightEnabled: e.target.checked })}
+                className="w-4 h-4 accent-[#FF6600] rounded"
+              />
+            </div>
+            <p className="text-[11px] text-zinc-400">
+              Recordatorio final para cerrar las disciplinas nocturnas.
+            </p>
+            <div className="flex items-center gap-2 pt-1">
+              <Clock className="w-3.5 h-3.5 text-zinc-500" />
+              <input
+                type="time"
+                value={reminders.nightTime}
+                onChange={(e) => handleUpdateReminders({ nightTime: e.target.value })}
+                className="bg-[#111] border border-zinc-700 rounded-lg px-2 py-1 text-white text-xs font-mono focus:border-[#FF6600] focus:outline-none"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Resumen Nocturno Opcional */}
+        <div className="p-4 rounded-2xl bg-gradient-to-r from-[#171720] to-[#161616] border border-purple-900/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-mono">
+          <div className="space-y-1">
+            <span className="font-bold text-white flex items-center gap-1.5">
+              <Moon className="w-4 h-4 text-purple-400" /> Resumen Nocturno de Cierre
+            </span>
+            <p className="text-[11px] text-zinc-400">
+              Emite el reporte diario: <strong className="text-zinc-200">"Hoy completaste X de Y objetivos"</strong> al terminar tu día.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3 shrink-0">
+            <input
+              type="time"
+              value={reminders.nightSummaryTime}
+              onChange={(e) => handleUpdateReminders({ nightSummaryTime: e.target.value })}
+              className="bg-[#111] border border-zinc-700 rounded-lg px-2 py-1 text-white text-xs font-mono focus:border-[#FF6600] focus:outline-none"
+            />
+            <input
+              type="checkbox"
+              checked={reminders.nightSummaryEnabled}
+              onChange={(e) => handleUpdateReminders({ nightSummaryEnabled: e.target.checked })}
+              className="w-5 h-5 accent-[#FF6600] rounded cursor-pointer"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* 7. Cola de Sincronización Offline (IndexedDB) */}
+      <div className="bg-[#1e1e1e] border border-[#2b2b2b] rounded-3xl p-6 shadow-xl space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-blue-500/15 border border-blue-500/30 flex items-center justify-center text-blue-400 shrink-0">
+              <WifiOff className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-base font-black text-white font-mono flex items-center gap-2">
+                Motor Offline & Cola IndexedDB
+              </h3>
+              <p className="text-xs text-zinc-400 mt-0.5">
+                Las acciones realizadas sin conexión se persisten en IndexedDB y se sincronizan en orden estricto sin duplicados al reconectar.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={handleSyncOffline}
+              disabled={isSyncingQueue || offlineCount === 0}
+              className={`px-4 py-2 rounded-xl text-xs font-mono font-bold flex items-center gap-1.5 transition-all min-h-[44px] ${
+                offlineCount > 0
+                  ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg'
+                  : 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
+              }`}
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isSyncingQueue ? 'animate-spin' : ''}`} />
+              <span>{isSyncingQueue ? 'Sincronizando...' : 'Sincronizar Ahora'}</span>
+            </button>
+
+            {offlineCount > 0 && (
+              <button
+                onClick={handleClearOffline}
+                className="p-2 rounded-xl text-zinc-400 hover:text-rose-400 bg-[#252525] hover:bg-[#303030] transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
+                title="Limpiar cola"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="p-3.5 rounded-2xl bg-[#141414] border border-zinc-800 flex items-center justify-between text-xs font-mono">
+          <div className="flex items-center gap-2">
+            <span
+              className={`w-2.5 h-2.5 rounded-full ${
+                typeof navigator !== 'undefined' && navigator.onLine ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'
+              }`}
+            />
+            <span className="text-zinc-300">
+              Conexión actual: <strong className="text-white">{typeof navigator !== 'undefined' && navigator.onLine ? 'Conectado a Internet' : 'Sin conexión (Modo Offline)'}</strong>
+            </span>
+          </div>
+
+          <span className="text-zinc-400">
+            Acciones en cola: <strong className={offlineCount > 0 ? 'text-amber-400 font-bold' : 'text-emerald-400'}>{offlineCount} pendientes</strong>
+          </span>
+        </div>
+
+        {offlineItems.length > 0 && (
+          <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+            {offlineItems.map((item, idx) => (
+              <div
+                key={item.id}
+                className="p-2.5 rounded-xl bg-[#161616] border border-zinc-800/80 flex items-center justify-between text-[11px] font-mono"
+              >
+                <span className="text-zinc-200">
+                  {idx + 1}. {item.type.replace(/_/g, ' ')}
+                </span>
+                <span className="text-zinc-500">
+                  {new Date(item.createdAt).toLocaleTimeString()}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* 8. Instalación de la Aplicación (PWA) */}
+      <div className="bg-[#1e1e1e] border border-[#2b2b2b] rounded-3xl p-6 shadow-xl space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-[#FF6600]/15 border border-[#FF6600]/30 flex items-center justify-center text-[#FF6600] shrink-0">
+              <Smartphone className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-base font-black text-white font-mono flex items-center gap-2">
+                Instalar Sayayin Radar en tu Móvil
+              </h3>
+              <p className="text-xs text-zinc-400 mt-0.5">
+                Instálala como PWA nativa para entrenar en pantalla completa y recibir recordatorios sin abrir el navegador.
+              </p>
+            </div>
+          </div>
+
+          <div className="shrink-0">
+            <PWAInstallButton showAlways={true} variant="primary" />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs font-mono text-zinc-400 pt-2 border-t border-zinc-800">
+          <div className="p-3 bg-[#141414] rounded-xl border border-zinc-800/80 space-y-1">
+            <strong className="text-white block font-bold">Android & Google Chrome / Edge:</strong>
+            <span>Presiona el botón superior o usa el menú del navegador → "Instalar aplicación".</span>
+          </div>
+          <div className="p-3 bg-[#141414] rounded-xl border border-zinc-800/80 space-y-1">
+            <strong className="text-white block font-bold">iPhone / iPad (Safari):</strong>
+            <span>Toca el icono Compartir de Safari y selecciona "Añadir a pantalla de inicio".</span>
+          </div>
+        </div>
+      </div>
+
+      {/* 9. Restablecer Datos de Demostración */}
       <div className="bg-[#1e1e1e] border border-zinc-800 rounded-3xl p-5 flex items-center justify-between gap-4">
         <div>
           <h4 className="text-sm font-bold text-white">Restablecer Entrenamiento de Fase 1</h4>

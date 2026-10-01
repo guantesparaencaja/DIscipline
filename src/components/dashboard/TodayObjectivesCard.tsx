@@ -188,8 +188,9 @@ export const TodayObjectivesCard: React.FC<TodayObjectivesCardProps> = ({ onAddO
                             if (isDone) reopenObjective(obj.id);
                             else completeObjective(obj.id);
                           }}
-                          className="mt-0.5 shrink-0 text-zinc-400 hover:text-[#FF6600] transition-colors"
+                          className="mt-0.5 shrink-0 text-zinc-400 hover:text-[#FF6600] transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center focus-visible:ring-2 focus-visible:ring-[#FF6600]"
                           title={isDone ? 'Marcar como pendiente' : 'Completar objetivo (+XP)'}
+                          aria-label={isDone ? 'Marcar como pendiente' : 'Completar objetivo (+XP)'}
                         >
                           {isDone ? (
                             <CheckCircle2 className="w-5 h-5 text-emerald-400 fill-emerald-950" />

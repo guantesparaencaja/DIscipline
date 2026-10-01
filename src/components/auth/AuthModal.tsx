@@ -74,53 +74,55 @@ export const AuthModal: React.FC = () => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
-      <div className="bg-[#1a1a1a] border border-[#FF6600]/40 rounded-3xl max-w-md w-full p-6 shadow-2xl relative space-y-6">
+    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-hidden animate-in fade-in duration-200">
+      <div className="bg-[#1a1a1a] border-t sm:border border-[#FF6600]/40 rounded-t-3xl sm:rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl relative max-h-[90dvh] flex flex-col overflow-hidden">
         {/* Close Button */}
         <button
           onClick={() => {
             setIsAuthModalOpen(false);
             setFeedback(null);
           }}
-          className="absolute top-5 right-5 p-2 rounded-full bg-zinc-800/80 hover:bg-zinc-700 text-zinc-400 hover:text-white transition-colors"
+          aria-label="Cerrar modal de autenticación"
+          className="absolute top-5 right-5 p-2 rounded-xl bg-zinc-800/80 hover:bg-zinc-700 text-zinc-400 hover:text-white transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center focus-visible:ring-2 focus-visible:ring-[#FF6600]"
         >
-          <X className="w-4 h-4" />
+          <X className="w-5 h-5" />
         </button>
 
-        {/* Header */}
-        <div className="text-center space-y-2 pt-2">
-          <div className="w-14 h-14 rounded-2xl bg-[#FF6600]/15 border border-[#FF6600]/40 flex items-center justify-center text-[#FF6600] mx-auto shadow-lg shadow-[#FF6600]/10">
-            <Zap className="w-7 h-7" />
-          </div>
-          <h2 className="text-xl font-black text-white font-mono uppercase tracking-wide">
-            {authUser ? 'Sesión de Guerrero Activa' : mode === 'login' ? 'Iniciar Sesión' : mode === 'register' ? 'Registrar Guerrero' : 'Recuperar Contraseña'}
-          </h2>
-          <p className="text-xs text-zinc-400 max-w-xs mx-auto">
-            {authUser
-              ? 'Tus progresos, logros y ki se sincronizan en la nube con Supabase.'
-              : 'Sincroniza tus finanzas, rachas y objetivos entre dispositivos.'}
-          </p>
-        </div>
-
-        {/* Connection Status indicator */}
-        <div className="flex items-center justify-between p-3 rounded-2xl bg-[#141414] border border-zinc-800 text-xs">
-          <div className="flex items-center gap-2">
-            <span
-              className={`w-2.5 h-2.5 rounded-full ${
-                isConfigured ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'
-              }`}
-            />
-            <span className="font-mono text-zinc-300">
-              {isConfigured ? 'Supabase Conectado' : 'Modo Almacenamiento Local'}
-            </span>
+        <div className="overflow-y-auto flex-1 space-y-5 pr-1">
+          {/* Header */}
+          <div className="text-center space-y-2 pt-1">
+            <div className="w-14 h-14 rounded-2xl bg-[#FF6600]/15 border border-[#FF6600]/40 flex items-center justify-center text-[#FF6600] mx-auto shadow-lg shadow-[#FF6600]/10">
+              <Zap className="w-7 h-7" />
+            </div>
+            <h2 className="text-xl font-black text-white font-mono uppercase tracking-wide">
+              {authUser ? 'Sesión de Guerrero Activa' : mode === 'login' ? 'Iniciar Sesión' : mode === 'register' ? 'Registrar Guerrero' : 'Recuperar Contraseña'}
+            </h2>
+            <p className="text-xs text-zinc-400 max-w-xs mx-auto">
+              {authUser
+                ? 'Tus progresos, logros y ki se sincronizan en la nube con Supabase.'
+                : 'Sincroniza tus finanzas, rachas y objetivos entre dispositivos.'}
+            </p>
           </div>
 
-          {!isConfigured && (
-            <span className="text-[10px] text-amber-400 font-bold">
-              Configura tus credenciales en Ajustes
-            </span>
-          )}
-        </div>
+          {/* Connection Status indicator */}
+          <div className="flex items-center justify-between p-3 rounded-2xl bg-[#141414] border border-zinc-800 text-xs">
+            <div className="flex items-center gap-2">
+              <span
+                className={`w-2.5 h-2.5 rounded-full ${
+                  isConfigured ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'
+                }`}
+              />
+              <span className="font-mono text-zinc-300">
+                {isConfigured ? 'Supabase Conectado' : 'Modo Almacenamiento Local'}
+              </span>
+            </div>
+
+            {!isConfigured && (
+              <span className="text-xs text-amber-400 font-bold">
+                Ajustes
+              </span>
+            )}
+          </div>
 
         {/* If already authenticated */}
         {authUser ? (
@@ -266,13 +268,14 @@ export const AuthModal: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setIsAuthModalOpen(false)}
-                className="text-[11px] text-zinc-400 hover:text-white transition-colors"
+                className="text-xs text-zinc-400 hover:text-white transition-colors min-h-[44px] flex items-center justify-center mx-auto"
               >
                 Continuar entrenando en Modo Local (Sin cuenta)
               </button>
             </div>
           </form>
         )}
+        </div>
       </div>
     </div>
   );

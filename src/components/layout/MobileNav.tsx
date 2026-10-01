@@ -14,10 +14,12 @@ import {
   Zap,
   BarChart3,
   ShieldAlert,
-  Flame
+  Flame,
+  Gift
 } from 'lucide-react';
 import { NavTab } from './Sidebar';
 import { useSayayinStore } from '../../store/useSayayinStore';
+import { PWAInstallButton } from '../ui/PWAInstallButton';
 
 interface MobileNavProps {
   activeTab: NavTab;
@@ -40,6 +42,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({ activeTab, onSelectTab }) 
     { id: 'miedos', label: 'Miedos & Creencias', icon: ShieldAlert, color: 'text-purple-400' },
     { id: 'planes', label: 'Planes Tácticos', icon: FileText },
     { id: 'acciones', label: 'Acciones Rápidas', icon: Zap },
+    { id: 'recompensas', label: 'Recompensas (XP)', icon: Gift, color: 'text-amber-400' },
     { id: 'companero', label: 'Compañero Saiyajin', icon: Users, color: 'text-emerald-400' },
     { id: 'logros', label: 'Logros & Rachas', icon: Trophy, color: 'text-amber-400' },
     { id: 'estadisticas', label: 'Estadísticas de Ki', icon: BarChart3 },
@@ -50,10 +53,12 @@ export const MobileNav: React.FC<MobileNavProps> = ({ activeTab, onSelectTab }) 
   return (
     <>
       {/* Bottom Floating Bar */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#141414]/95 backdrop-blur-md border-t border-[#262626] px-2 py-1.5 flex items-center justify-around safe-area-bottom shadow-2xl">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#141414]/95 backdrop-blur-md border-t border-[#262626] px-1 py-1 flex items-center justify-around safe-area-bottom shadow-2xl">
         <button
           onClick={() => handleSelect('inicio')}
-          className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-lg text-[10px] font-semibold transition-colors ${
+          data-testid="nav-tab-inicio"
+          aria-label="Ir a Inicio"
+          className={`flex flex-col items-center justify-center gap-1 min-h-[48px] min-w-[56px] px-2 rounded-xl text-xs font-bold transition-all focus-visible:ring-2 focus-visible:ring-[#FF6600] focus-visible:outline-none ${
             activeTab === 'inicio' ? 'text-[#FF6600]' : 'text-zinc-400 hover:text-zinc-200'
           }`}
         >
@@ -63,7 +68,9 @@ export const MobileNav: React.FC<MobileNavProps> = ({ activeTab, onSelectTab }) 
 
         <button
           onClick={() => handleSelect('finanzas')}
-          className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-lg text-[10px] font-semibold transition-colors ${
+          data-testid="nav-tab-finanzas"
+          aria-label="Ir a Finanzas"
+          className={`flex flex-col items-center justify-center gap-1 min-h-[48px] min-w-[56px] px-2 rounded-xl text-xs font-bold transition-all focus-visible:ring-2 focus-visible:ring-[#FF6600] focus-visible:outline-none ${
             activeTab === 'finanzas' ? 'text-[#FF6600]' : 'text-zinc-400 hover:text-zinc-200'
           }`}
         >
@@ -73,14 +80,16 @@ export const MobileNav: React.FC<MobileNavProps> = ({ activeTab, onSelectTab }) 
 
         <button
           onClick={() => handleSelect('objetivos')}
-          className={`relative flex flex-col items-center gap-1 py-1 px-2.5 rounded-lg text-[10px] font-semibold transition-colors ${
+          data-testid="nav-tab-objetivos"
+          aria-label={`Ir a Objetivos (${pendingCount} pendientes)`}
+          className={`relative flex flex-col items-center justify-center gap-1 min-h-[48px] min-w-[56px] px-2 rounded-xl text-xs font-bold transition-all focus-visible:ring-2 focus-visible:ring-[#FF6600] focus-visible:outline-none ${
             activeTab === 'objetivos' ? 'text-[#FF6600]' : 'text-zinc-400 hover:text-zinc-200'
           }`}
         >
           <CheckSquare className="w-5 h-5" />
           <span>Objetivos</span>
           {pendingCount > 0 && (
-            <span className="absolute top-0 right-1 w-4 h-4 rounded-full bg-[#FF6600] text-black text-[9px] font-black flex items-center justify-center">
+            <span className="absolute top-1 right-2 w-4 h-4 rounded-full bg-[#FF6600] text-black text-[11px] font-black flex items-center justify-center">
               {pendingCount}
             </span>
           )}
@@ -88,7 +97,9 @@ export const MobileNav: React.FC<MobileNavProps> = ({ activeTab, onSelectTab }) 
 
         <button
           onClick={() => handleSelect('metas')}
-          className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-lg text-[10px] font-semibold transition-colors ${
+          data-testid="nav-tab-metas"
+          aria-label="Ir a Metas"
+          className={`flex flex-col items-center justify-center gap-1 min-h-[48px] min-w-[56px] px-2 rounded-xl text-xs font-bold transition-all focus-visible:ring-2 focus-visible:ring-[#FF6600] focus-visible:outline-none ${
             activeTab === 'metas' ? 'text-[#FF6600]' : 'text-zinc-400 hover:text-zinc-200'
           }`}
         >
@@ -98,9 +109,11 @@ export const MobileNav: React.FC<MobileNavProps> = ({ activeTab, onSelectTab }) 
 
         <button
           onClick={() => setIsMoreOpen(true)}
-          className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-lg text-[10px] font-semibold transition-colors ${
+          data-testid="nav-tab-more"
+          aria-label="Ver más secciones"
+          className={`flex flex-col items-center justify-center gap-1 min-h-[48px] min-w-[56px] px-2 rounded-xl text-xs font-bold transition-all focus-visible:ring-2 focus-visible:ring-[#FF6600] focus-visible:outline-none ${
             isMoreOpen ||
-            ['habitos', 'miedos', 'planes', 'acciones', 'companero', 'logros', 'estadisticas', 'calendario', 'configuracion'].includes(
+            ['habitos', 'miedos', 'planes', 'acciones', 'recompensas', 'companero', 'logros', 'estadisticas', 'calendario', 'configuracion'].includes(
               activeTab
             )
               ? 'text-[#FF6600]'
@@ -112,35 +125,37 @@ export const MobileNav: React.FC<MobileNavProps> = ({ activeTab, onSelectTab }) 
         </button>
       </nav>
 
-      {/* "Más" Drawer Modal */}
+      {/* "Más" Bottom Sheet Drawer Modal */}
       {isMoreOpen && (
         <div className="md:hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex flex-col justify-end animate-in fade-in duration-200">
           <div
             className="flex-1"
             onClick={() => setIsMoreOpen(false)}
           />
-          <div className="bg-[#1a1a1a] border-t border-[#333] rounded-t-3xl p-5 space-y-4 max-h-[80vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-2 border-b border-[#2d2d2d]">
-              <span className="text-sm font-bold text-white uppercase tracking-wider">
-                Módulos Adicionales
+          <div className="bg-[#1a1a1a] border-t border-[#333] rounded-t-3xl p-5 space-y-4 max-h-[90dvh] flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between pb-2 border-b border-[#2d2d2d] shrink-0">
+              <span className="text-sm font-bold text-white uppercase tracking-wider font-mono">
+                Módulos Adicionales (12 Secciones)
               </span>
               <button
                 onClick={() => setIsMoreOpen(false)}
-                className="p-1 rounded-full text-zinc-400 hover:text-white"
+                aria-label="Cerrar menú adicional"
+                className="p-2 rounded-xl text-zinc-400 hover:text-white bg-[#252525] transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center focus-visible:ring-2 focus-visible:ring-[#FF6600]"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-2.5">
+            <div className="grid grid-cols-2 gap-2.5 overflow-y-auto flex-1 pr-1">
               {moreItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = activeTab === item.id;
                 return (
                   <button
                     key={item.id}
+                    data-testid={`nav-tab-${item.id}`}
                     onClick={() => handleSelect(item.id)}
-                    className={`flex items-center gap-3 p-3 rounded-xl border text-left text-xs font-semibold transition-all ${
+                    className={`flex items-center gap-3 p-3 rounded-xl border text-left text-xs font-semibold transition-all min-h-[48px] focus-visible:ring-2 focus-visible:ring-[#FF6600] ${
                       isActive
                         ? 'bg-[#FF6600]/20 border-[#FF6600] text-white'
                         : 'bg-[#222] border-[#2f2f2f] text-zinc-300 hover:border-zinc-500'
@@ -151,6 +166,10 @@ export const MobileNav: React.FC<MobileNavProps> = ({ activeTab, onSelectTab }) 
                   </button>
                 );
               })}
+            </div>
+
+            <div className="pt-2 border-t border-[#2d2d2d] shrink-0">
+              <PWAInstallButton className="w-full justify-center" variant="primary" showAlways={true} />
             </div>
           </div>
         </div>

@@ -10,7 +10,8 @@ import {
   Repeat,
   Sun,
   Sunset,
-  Moon
+  Moon,
+  AlertCircle
 } from 'lucide-react';
 import { DIFFICULTY_CONFIG, SMART_OBJECTIVE_TEMPLATES, TIME_SLOT_CONFIG } from '../../lib/constants';
 import { ObjectiveDifficulty, RecurrenceType, TimeSlot } from '../../types';
@@ -33,6 +34,7 @@ export const ObjectiveModal: React.FC<ObjectiveModalProps> = ({ isOpen, onClose 
   const [goalId, setGoalId] = useState(goals[0]?.id || '');
   const [isPartnerVisible, setIsPartnerVisible] = useState(true);
   const [recurrence, setRecurrence] = useState<RecurrenceType>('diaria');
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
@@ -40,14 +42,16 @@ export const ObjectiveModal: React.FC<ObjectiveModalProps> = ({ isOpen, onClose 
     setTitle(tmpl.title);
     setTimeSlot(tmpl.timeSlot);
     setDifficulty(tmpl.difficulty);
+    setErrorMsg(null);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) {
-      alert('Ingresa el título del objetivo');
+      setErrorMsg('Ingresa el título del objetivo');
       return;
     }
+    setErrorMsg(null);
 
     const savingAmount = savingAmountStr ? Number(savingAmountStr.replace(/\D/g, '')) : undefined;
     const xpReward = DIFFICULTY_CONFIG[difficulty].xp;
@@ -73,17 +77,18 @@ export const ObjectiveModal: React.FC<ObjectiveModalProps> = ({ isOpen, onClose 
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200">
-      <div className="bg-[#1e1e1e] border border-[#333] rounded-3xl max-w-xl w-full p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-hidden animate-in fade-in duration-200">
+      <div className="bg-[#1e1e1e] border-t sm:border border-[#333] rounded-t-3xl sm:rounded-3xl max-w-xl w-full p-5 sm:p-6 shadow-2xl relative max-h-[90dvh] flex flex-col overflow-hidden">
         <button
           onClick={onClose}
-          className="absolute top-5 right-5 p-2 rounded-xl text-zinc-400 hover:text-white bg-[#252525] hover:bg-[#303030] transition-colors"
+          aria-label="Cerrar modal de objetivo"
+          className="absolute top-5 right-5 p-2 rounded-xl text-zinc-400 hover:text-white bg-[#252525] hover:bg-[#303030] transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center focus-visible:ring-2 focus-visible:ring-[#FF6600]"
         >
           <X className="w-5 h-5" />
         </button>
 
-        <div className="mb-4">
-          <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">
+        <div className="mb-3 shrink-0">
+          <span className="text-xs font-bold text-[#FF6600] uppercase tracking-widest font-mono">
             Rutina & Disciplina Saiyajin
           </span>
           <h3 className="text-xl font-black text-white font-mono flex items-center gap-2 mt-0.5">
@@ -111,8 +116,15 @@ export const ObjectiveModal: React.FC<ObjectiveModalProps> = ({ isOpen, onClose 
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4 text-xs">
-          {/* Título */}
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
+          <div className="overflow-y-auto flex-1 space-y-4 pr-1 text-xs">
+            {errorMsg && (
+              <div className="p-3 bg-rose-950/60 border border-rose-800/80 rounded-2xl text-xs text-rose-300 flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                <span>{errorMsg}</span>
+              </div>
+            )}
+            {/* Título */}
           <div>
             <label className="block text-zinc-300 font-bold mb-1">Título del Objetivo *</label>
             <input
@@ -244,27 +256,38 @@ export const ObjectiveModal: React.FC<ObjectiveModalProps> = ({ isOpen, onClose 
               </select>
             </div>
 
-            <div className="flex items-center justify-between p-2.5 bg-[#141414] rounded-xl border border-zinc-800">
+            <div className="flex items-center justify-between p-3 bg-[#141414] rounded-xl border border-zinc-800 min-h-[44px]">
               <div>
                 <span className="font-bold text-white block">Visible a Compañero</span>
-                <span className="text-[10px] text-zinc-400">Podrá ver tu avance en vivo</span>
+                <span className="text-xs text-zinc-400">Podrá ver tu avance en vivo</span>
               </div>
               <input
                 type="checkbox"
                 checked={isPartnerVisible}
                 onChange={(e) => setIsPartnerVisible(e.target.checked)}
-                className="w-4 h-4 accent-[#FF6600] rounded cursor-pointer"
+                className="w-5 h-5 accent-[#FF6600] rounded cursor-pointer"
               />
             </div>
           </div>
 
-          {/* Submit */}
-          <button
-            type="submit"
-            className="w-full py-3 bg-[#FF6600] hover:bg-orange-500 text-black font-black uppercase tracking-wider rounded-xl transition-all shadow-lg active:scale-98 mt-2"
-          >
-            Agregar Objetivo al Radar
-          </button>
+          </div>
+
+          {/* Sticky Bottom Buttons */}
+          <div className="sticky bottom-0 bg-[#1e1e1e] pt-3 pb-1 border-t border-zinc-800 flex items-center justify-end gap-3 shrink-0">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2.5 rounded-xl text-zinc-300 hover:text-white bg-[#252525] font-bold text-xs min-h-[44px] transition-colors focus-visible:ring-2 focus-visible:ring-zinc-400"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              className="px-5 py-2.5 bg-[#FF6600] hover:bg-orange-500 text-black font-black uppercase tracking-wider rounded-xl transition-all shadow-lg active:scale-95 min-h-[44px] font-mono text-xs focus-visible:ring-2 focus-visible:ring-[#FF6600]"
+            >
+              Agregar Objetivo al Radar
+            </button>
+          </div>
         </form>
       </div>
     </div>

@@ -90,29 +90,31 @@ export const EstadisticasView: React.FC = () => {
             </h3>
           </div>
 
-          <div className="h-56 w-full flex items-center justify-center">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={financialDistribution}
-                  dataKey="value"
-                  nameKey="name"
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={80}
-                  innerRadius={45}
-                  paddingAngle={4}
-                >
-                  {financialDistribution.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  formatter={(val: any) => formatCOP(Number(val) || 0)}
-                  contentStyle={{ backgroundColor: '#141414', border: '1px solid #333', borderRadius: 12 }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
+          <div className="overflow-x-auto w-full">
+            <div className="h-56 min-w-[280px] w-full flex items-center justify-center">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={financialDistribution}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={80}
+                    innerRadius={45}
+                    paddingAngle={4}
+                  >
+                    {financialDistribution.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(val: any) => formatCOP(Number(val) || 0)}
+                    contentStyle={{ backgroundColor: '#141414', border: '1px solid #333', borderRadius: 12 }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
           </div>
 
           <div className="grid grid-cols-3 gap-2 text-center text-xs pt-2 border-t border-zinc-800/80">
@@ -134,18 +136,20 @@ export const EstadisticasView: React.FC = () => {
             </h3>
           </div>
 
-          <div className="h-56 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={slotStats} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <XAxis dataKey="slot" stroke="#666" fontSize={11} tickLine={false} axisLine={{ stroke: '#333' }} />
-                <YAxis stroke="#666" fontSize={11} allowDecimals={false} tickLine={false} axisLine={{ stroke: '#333' }} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#141414', border: '1px solid #333', borderRadius: 12 }}
-                />
-                <Bar dataKey="done" name="Cumplidos" fill="#FF6600" radius={[6, 6, 0, 0]} />
-                <Bar dataKey="total" name="Totales" fill="#333" radius={[6, 6, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+          <div className="overflow-x-auto w-full">
+            <div className="h-56 min-w-[280px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={slotStats} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <XAxis dataKey="slot" stroke="#666" fontSize={11} tickLine={false} axisLine={{ stroke: '#333' }} />
+                  <YAxis stroke="#666" fontSize={11} allowDecimals={false} tickLine={false} axisLine={{ stroke: '#333' }} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: '#141414', border: '1px solid #333', borderRadius: 12 }}
+                  />
+                  <Bar dataKey="done" name="Cumplidos" fill="#FF6600" radius={[6, 6, 0, 0]} />
+                  <Bar dataKey="total" name="Totales" fill="#333" radius={[6, 6, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           </div>
 
           <p className="text-xs text-zinc-400 text-center">

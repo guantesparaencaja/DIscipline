@@ -198,15 +198,122 @@ export const MOTIVATIONAL_QUOTES = [
 ];
 
 export const DEFAULT_EXPENSE_CATEGORIES: ExpenseCategory[] = [
-  { id: 'cat_vivienda', name: 'Vivienda / Arriendo', icon: 'Home', color: '#3B82F6', isDefault: true },
-  { id: 'cat_alimentacion', name: 'Alimentación / Mercado', icon: 'Utensils', color: '#10B981', isDefault: true },
-  { id: 'cat_transporte', name: 'Transporte & Movilidad', icon: 'Car', color: '#F59E0B', isDefault: true },
-  { id: 'cat_salud', name: 'Salud & Bienestar', icon: 'HeartPulse', color: '#EF4444', isDefault: true },
-  { id: 'cat_educacion', name: 'Educación & Crecimiento', icon: 'BookOpen', color: '#8B5CF6', isDefault: true },
-  { id: 'cat_salidas', name: 'Salidas & Ocio', icon: 'Sparkles', color: '#EC4899', isDefault: true },
-  { id: 'cat_ropa', name: 'Vestimenta / Traje', icon: 'Shirt', color: '#6366F1', isDefault: true },
-  { id: 'cat_ahorro', name: 'Ahorro para Metas', icon: 'PiggyBank', color: '#FF6600', isDefault: true },
-  { id: 'cat_otros', name: 'Otros Imprevistos', icon: 'MoreHorizontal', color: '#6B7280', isDefault: true }
+  { id: 'cat_vivienda', name: 'Vivienda / Arriendo', icon: 'Home', color: '#3B82F6', isDefault: true, budgetLimit: 650000 },
+  { id: 'cat_alimentacion', name: 'Alimentación / Mercado', icon: 'Utensils', color: '#10B981', isDefault: true, budgetLimit: 400000 },
+  { id: 'cat_transporte', name: 'Transporte & Movilidad', icon: 'Car', color: '#F59E0B', isDefault: true, budgetLimit: 150000 },
+  { id: 'cat_salud', name: 'Salud & Bienestar', icon: 'HeartPulse', color: '#EF4444', isDefault: true, budgetLimit: 100000 },
+  { id: 'cat_educacion', name: 'Educación & Crecimiento', icon: 'BookOpen', color: '#8B5CF6', isDefault: true, budgetLimit: 120000 },
+  { id: 'cat_salidas', name: 'Salidas & Ocio', icon: 'Sparkles', color: '#EC4899', isDefault: true, budgetLimit: 150000 },
+  { id: 'cat_ropa', name: 'Vestimenta / Traje', icon: 'Shirt', color: '#6366F1', isDefault: true, budgetLimit: 120000 },
+  { id: 'cat_ahorro', name: 'Ahorro para Metas', icon: 'PiggyBank', color: '#FF6600', isDefault: true, budgetLimit: 300000 },
+  { id: 'cat_otros', name: 'Otros Imprevistos', icon: 'MoreHorizontal', color: '#6B7280', isDefault: true, budgetLimit: 80000 }
+];
+
+export const DEFAULT_PERSONAL_REWARDS = [
+  {
+    id: 'rew_nap',
+    userId: 'usr_default',
+    title: 'Siesta de Recuperación (30 min)',
+    description: 'Pausa regenerativa de ki para reiniciar foco y energía mental.',
+    costXp: 120,
+    icon: 'Moon',
+    category: 'Descanso',
+    timesRedeemed: 0,
+    createdAt: '2026-01-01T00:00:00.000Z'
+  },
+  {
+    id: 'rew_cheat_meal',
+    userId: 'usr_default',
+    title: 'Comida Especial / Banquete Saiyajin',
+    description: 'Una comida deliciosa elegida libremente sin culpa para celebrar victorias.',
+    costXp: 300,
+    icon: 'Utensils',
+    category: 'Celebración',
+    timesRedeemed: 0,
+    createdAt: '2026-01-01T00:00:00.000Z'
+  },
+  {
+    id: 'rew_book',
+    userId: 'usr_default',
+    title: 'Comprar Libro de Crecimiento o Finanzas',
+    description: 'Invertir en sabiduría táctica para el siguiente nivel.',
+    costXp: 450,
+    icon: 'BookOpen',
+    category: 'Conocimiento',
+    timesRedeemed: 0,
+    createdAt: '2026-01-01T00:00:00.000Z'
+  },
+  {
+    id: 'rew_gaming',
+    userId: 'usr_default',
+    title: 'Tarde de Videojuegos / Película sin Culpa',
+    description: '3 horas de entretenimiento inmersivo con el orgullo de haber cumplido la rutina.',
+    costXp: 250,
+    icon: 'Tv',
+    category: 'Ocio',
+    timesRedeemed: 0,
+    createdAt: '2026-01-01T00:00:00.000Z'
+  },
+  {
+    id: 'rew_gear',
+    userId: 'usr_default',
+    title: 'Nuevo Accesorio / Ropa de Entrenamiento',
+    description: 'Mejora de equipamiento físico para entrenar con porte de guerrero.',
+    costXp: 750,
+    icon: 'Shirt',
+    category: 'Equipamiento',
+    timesRedeemed: 0,
+    createdAt: '2026-01-01T00:00:00.000Z'
+  }
+];
+
+export const DEFAULT_ACTIONS = [
+  {
+    id: 'act_audit_funds',
+    userId: 'usr_default',
+    title: 'Auditar extracto bancario y verificar gastos del mes',
+    description: 'Revisión minuciosa de cada transacción contra el presupuesto asignado.',
+    targetType: 'meta' as const,
+    targetId: 'goal_emergency_01',
+    targetTitle: 'Fondo de Emergencia Inquebrantable',
+    xpReward: 30,
+    isCompleted: false,
+    createdAt: '2026-01-01T00:00:00.000Z'
+  },
+  {
+    id: 'act_prep_workout',
+    userId: 'usr_default',
+    title: 'Dejar preparado el traje y termo la noche anterior',
+    description: 'Elimina toda fricción para arrancar el entrenamiento matutino a primera hora.',
+    targetType: 'habito' as const,
+    targetId: 'habit_gravity_workout',
+    targetTitle: 'Entrenamiento Físico (Gravedad 100G)',
+    xpReward: 20,
+    isCompleted: false,
+    createdAt: '2026-01-01T00:00:00.000Z'
+  },
+  {
+    id: 'act_plan_groceries',
+    userId: 'usr_default',
+    title: 'Hacer lista de mercado estricta antes de salir a comprar',
+    description: 'Evitar compras impulsivas y mantener el gasto bajo el 80% del presupuesto.',
+    targetType: 'plan' as const,
+    targetTitle: 'Plan Blindaje de Costos Fijos',
+    xpReward: 25,
+    isCompleted: false,
+    createdAt: '2026-01-01T00:00:00.000Z'
+  },
+  {
+    id: 'act_save_daily',
+    userId: 'usr_default',
+    title: 'Separar $10.000 COP hoy en la alcancía o cuenta de ahorro',
+    description: 'Cuota diaria táctica para cumplir el ritmo requerido de la meta.',
+    targetType: 'objetivo' as const,
+    targetTitle: 'Apartar cuota diaria de meta',
+    xpReward: 20,
+    isCompleted: false,
+    createdAt: '2026-01-01T00:00:00.000Z'
+  }
 ];
 
 export const DEFAULT_FIXED_DEDUCTIONS: Omit<FixedDeduction, 'id' | 'userId'>[] = [

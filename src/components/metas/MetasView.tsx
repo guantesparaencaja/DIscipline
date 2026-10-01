@@ -32,7 +32,7 @@ export const MetasView: React.FC<MetasViewProps> = ({
   const goals = store.goals || [];
   const dailyObjectives = store.dailyObjectives || [];
   const plans = store.plans || [];
-  const { deleteGoal } = store;
+  const { deleteGoal, generateSmartObjectivesForGoal } = store;
 
   const handleDeleteGoal = (id: string, title: string) => {
     const ok = window.confirm(`¿Seguro que deseas eliminar la meta:\n"${title}"?\nEsto eliminará también los planes tácticos asociados.`);
@@ -194,7 +194,9 @@ export const MetasView: React.FC<MetasViewProps> = ({
                     <span className="text-base font-black text-[#FF6600] font-mono mt-1 block">
                       {formatCOP(pace.dailyRequiredPace)}
                     </span>
-                    <span className="text-[9px] text-zinc-400">Separar al día</span>
+                    <span className="text-[9px] text-zinc-400">
+                      Ritmo actual: {formatCOP(pace.currentDailyPace)}/día
+                    </span>
                   </div>
                 </div>
 
@@ -205,12 +207,20 @@ export const MetasView: React.FC<MetasViewProps> = ({
                     <span className="italic truncate">"{goal.motivation}"</span>
                   </div>
 
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex flex-wrap items-center gap-2 shrink-0">
+                    <button
+                      onClick={() => generateSmartObjectivesForGoal(goal.id)}
+                      className="px-3 py-1.5 bg-[#FF6600]/15 hover:bg-[#FF6600]/25 text-[#FF6600] border border-[#FF6600]/40 rounded-xl font-bold transition-colors flex items-center gap-1.5"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>Generar Objetivo Inteligente ({formatCOP(pace.dailyRequiredPace)}/día)</span>
+                    </button>
+
                     <button
                       onClick={onOpenObjectiveModal}
                       className="px-3 py-1.5 bg-[#252525] hover:bg-[#303030] text-zinc-200 border border-zinc-700/60 rounded-xl font-bold transition-colors"
                     >
-                      + Crear Objetivo Diario
+                      + Objetivo Manual
                     </button>
 
                     <button

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useSayayinStore } from '../../store/useSayayinStore';
-import { X, DollarSign, Tag, Calendar, CreditCard, PiggyBank } from 'lucide-react';
+import { X, DollarSign, Tag, Calendar, CreditCard, PiggyBank, AlertCircle } from 'lucide-react';
 import { PaymentMethod } from '../../types';
 import { formatCOP, getTodayDateString } from '../../lib/formatters';
 
@@ -20,6 +20,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose }) =
   const [isSaving, setIsSaving] = useState(false);
   const [goalId, setGoalId] = useState(goals[0]?.id || '');
   const [note, setNote] = useState('');
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
@@ -27,13 +28,14 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose }) =
     e.preventDefault();
     const amount = Number(amountStr.replace(/\D/g, ''));
     if (!amount || amount <= 0) {
-      alert('Ingresa un monto válido mayor a 0 COP');
+      setErrorMsg('Ingresa un monto válido mayor a 0 COP');
       return;
     }
     if (!description.trim()) {
-      alert('Ingresa una descripción del gasto');
+      setErrorMsg('Ingresa una descripción del gasto');
       return;
     }
+    setErrorMsg(null);
 
     const selectedCategory = categories.find((c) => c.id === categoryId);
 
@@ -68,17 +70,18 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose }) =
   const formattedPreview = amountStr ? formatCOP(Number(amountStr)) : '$0';
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200">
-      <div className="bg-[#1e1e1e] border border-[#333] rounded-3xl max-w-lg w-full p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-hidden animate-in fade-in duration-200">
+      <div className="bg-[#1e1e1e] border-t sm:border border-[#333] rounded-t-3xl sm:rounded-3xl max-w-lg w-full p-5 sm:p-6 shadow-2xl relative max-h-[90dvh] flex flex-col overflow-hidden">
         <button
           onClick={onClose}
-          className="absolute top-5 right-5 p-2 rounded-xl text-zinc-400 hover:text-white bg-[#252525] hover:bg-[#303030] transition-colors"
+          aria-label="Cerrar modal de gasto"
+          className="absolute top-5 right-5 p-2 rounded-xl text-zinc-400 hover:text-white bg-[#252525] hover:bg-[#303030] transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center focus-visible:ring-2 focus-visible:ring-[#FF6600]"
         >
           <X className="w-5 h-5" />
         </button>
 
-        <div className="mb-5">
-          <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">
+        <div className="mb-4 shrink-0">
+          <span className="text-xs font-bold text-[#FF6600] uppercase tracking-widest font-mono">
             Registro de Movimiento
           </span>
           <h3 className="text-xl font-black text-white font-mono flex items-center gap-2 mt-0.5">
@@ -86,7 +89,14 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose }) =
           </h3>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4 text-xs">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
+          <div className="overflow-y-auto flex-1 space-y-4 pr-1 text-xs">
+          {errorMsg && (
+            <div className="p-3 bg-rose-950/60 border border-rose-800/80 rounded-2xl text-xs text-rose-300 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+              <span>{errorMsg}</span>
+            </div>
+          )}
           {/* Monto (COP) */}
           <div>
             <label className="block text-zinc-300 font-bold mb-1">
@@ -218,15 +228,25 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose }) =
               />
             </div>
           </div>
+        </div>
 
-          {/* Submit */}
+        {/* Sticky Bottom Buttons */}
+        <div className="sticky bottom-0 bg-[#1e1e1e] pt-3 pb-1 border-t border-zinc-800 flex items-center justify-end gap-3 shrink-0">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2.5 rounded-xl text-zinc-300 hover:text-white bg-[#252525] font-bold text-xs min-h-[44px] transition-colors focus-visible:ring-2 focus-visible:ring-zinc-400"
+          >
+            Cancelar
+          </button>
           <button
             type="submit"
-            className="w-full py-3 bg-[#FF6600] hover:bg-orange-500 text-black font-black uppercase tracking-wider rounded-xl transition-all shadow-lg active:scale-98 mt-2"
+            className="px-5 py-2.5 bg-[#FF6600] hover:bg-orange-500 text-black font-black uppercase tracking-wider rounded-xl transition-all shadow-lg active:scale-95 min-h-[44px] font-mono text-xs focus-visible:ring-2 focus-visible:ring-[#FF6600]"
           >
             Guardar Movimiento
           </button>
-        </form>
+        </div>
+      </form>
       </div>
     </div>
   );

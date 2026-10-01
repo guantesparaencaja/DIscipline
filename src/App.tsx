@@ -9,7 +9,9 @@ import { ObjectiveModal } from './components/objetivos/ObjectiveModal';
 import { GoalModal } from './components/metas/GoalModal';
 import { AuthModal } from './components/auth/AuthModal';
 import { NivelHistorialModal } from './components/progreso/NivelHistorialModal';
+import { OfflineIndicator } from './components/ui/OfflineIndicator';
 import { useSayayinStore } from './store/useSayayinStore';
+import { evaluateReminders } from './lib/notifications';
 import { Flame } from 'lucide-react';
 import { DashboardView } from './components/dashboard/DashboardView';
 
@@ -57,6 +59,9 @@ const PlanesView = lazyRetry(() =>
 const AccionesView = lazyRetry(() =>
   import('./components/acciones/AccionesView').then((m) => ({ default: m.AccionesView }))
 );
+const RecompensasView = lazyRetry(() =>
+  import('./components/recompensas/RecompensasView').then((m) => ({ default: m.RecompensasView }))
+);
 const MiedosView = lazyRetry(() =>
   import('./components/miedos/MiedosView').then((m) => ({ default: m.MiedosView }))
 );
@@ -94,17 +99,29 @@ export default function App() {
     setIsNivelHistorialOpen,
     initAuthListener,
     checkAchievements,
-    generateRecurringObjectives
+    generateRecurringObjectives,
+    dailyObjectives
   } = useSayayinStore();
 
   useEffect(() => {
     initAuthListener();
     checkAchievements();
     generateRecurringObjectives();
+
+    // Check reminders initially and every 30s
+    evaluateReminders(dailyObjectives || []);
+    const reminderInterval = setInterval(() => {
+      evaluateReminders(useSayayinStore.getState().dailyObjectives || []);
+    }, 30000);
+
+    return () => clearInterval(reminderInterval);
   }, []);
 
   return (
     <div className="min-h-dvh bg-[#121212] text-zinc-100 flex flex-col font-sans selection:bg-[#FF6600] selection:text-black antialiased">
+      {/* Offline Sync State Indicator */}
+      <OfflineIndicator />
+
       {/* 1. Top Bar */}
       <Navbar
         onOpenSettings={() => setActiveTab('configuracion')}
@@ -119,7 +136,7 @@ export default function App() {
         </div>
 
         {/* Viewport Content */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 min-w-0 overflow-x-hidden">
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 min-w-0 overflow-x-hidden pb-28 md:pb-8">
           <Suspense fallback={<ViewLoadingFallback />}>
             {activeTab === 'inicio' && (
               <DashboardView
@@ -159,8 +176,11 @@ export default function App() {
               <AccionesView
                 onOpenExpenseModal={() => setIsExpenseModalOpen(true)}
                 onOpenGoalModal={() => setIsGoalModalOpen(true)}
+                onNavigateToRewards={() => setActiveTab('recompensas')}
               />
             )}
+
+            {activeTab === 'recompensas' && <RecompensasView />}
 
             {activeTab === 'miedos' && <MiedosView />}
 

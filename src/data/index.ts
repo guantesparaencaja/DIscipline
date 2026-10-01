@@ -10,3 +10,4 @@ export * from './fearsRepository';
 export * from './achievementsRepository';
 export * from './partnerRepository';
 export * from './habitsRepository';
+export * from './actionsRewardsRepository';

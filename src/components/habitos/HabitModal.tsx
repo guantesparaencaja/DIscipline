@@ -198,10 +198,10 @@ export const HabitModal: React.FC<HabitModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="relative w-full max-w-lg bg-[#181818] border border-[#333] rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200 overflow-hidden">
+      <div className="relative w-full max-w-lg bg-[#181818] border-t sm:border border-[#333] rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90dvh]">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#2b2b2b] bg-gradient-to-r from-[#201c18] to-[#181818]">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#2b2b2b] bg-gradient-to-r from-[#201c18] to-[#181818] shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-[#FF6600]/20 border border-[#FF6600]/40 flex items-center justify-center text-[#FF6600]">
               <Flame className="w-4 h-4" />
@@ -210,21 +210,24 @@ export const HabitModal: React.FC<HabitModalProps> = ({
               <h3 className="text-base font-bold text-white font-mono">
                 {habitToEdit ? 'Editar Hábito Saiyajin' : 'Nuevo Hábito de Entrenamiento'}
               </h3>
-              <p className="text-[11px] text-zinc-400">
+              <p className="text-xs text-zinc-400">
                 La disciplina diaria transforma tu ki y forja tu destino
               </p>
             </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="p-1.5 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+            aria-label="Cerrar modal de hábito"
+            className="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center focus-visible:ring-2 focus-visible:ring-[#FF6600]"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-5">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
+          <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-5">
           {error && (
             <div className="p-3 rounded-xl bg-red-950/50 border border-red-800/80 text-xs text-red-300">
               {error}
@@ -512,18 +515,20 @@ export const HabitModal: React.FC<HabitModalProps> = ({
             </div>
           )}
 
-          {/* Footer Action Buttons */}
-          <div className="flex items-center justify-end gap-3 pt-4 border-t border-zinc-800">
+          </div>
+
+          {/* Sticky Footer Action Buttons */}
+          <div className="sticky bottom-0 bg-[#181818] px-6 py-3 border-t border-zinc-800 flex items-center justify-end gap-3 shrink-0">
             <button
               type="button"
               onClick={onClose}
-              className="px-5 py-2.5 rounded-xl border border-zinc-700 text-xs font-bold text-zinc-300 hover:bg-zinc-800 transition-colors"
+              className="px-5 py-2.5 rounded-xl border border-zinc-700 text-xs font-bold text-zinc-300 hover:bg-zinc-800 transition-colors min-h-[44px]"
             >
               Cancelar
             </button>
             <button
               type="submit"
-              className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-[#FF6600] to-orange-500 text-black text-xs font-black uppercase tracking-wider hover:brightness-110 active:scale-95 transition-all shadow-lg flex items-center gap-2"
+              className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-[#FF6600] to-orange-500 text-black text-xs font-black uppercase tracking-wider hover:brightness-110 active:scale-95 transition-all shadow-lg flex items-center justify-center gap-2 min-h-[44px] font-mono focus-visible:ring-2 focus-visible:ring-[#FF6600]"
             >
               <Zap className="w-4 h-4 fill-black" />
               <span>{habitToEdit ? 'Guardar Cambios' : 'Crear Hábito'}</span>

@@ -109,12 +109,12 @@ export const NivelHistorialModal: React.FC<NivelHistorialModalProps> = ({ isOpen
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
-      <div className="relative w-full max-w-2xl bg-[#1e1e1e] border border-zinc-800 rounded-3xl p-6 shadow-2xl space-y-5 max-h-[90vh] flex flex-col overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-md animate-fade-in overflow-hidden">
+      <div className="relative w-full max-w-2xl bg-[#1e1e1e] border-t sm:border border-zinc-800 rounded-t-3xl sm:rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4 max-h-[90dvh] flex flex-col overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-zinc-800 shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-[#FF6600]/15 text-[#FF6600] border border-[#FF6600]/30">
+            <div className="p-2 rounded-xl bg-[#FF6600]/15 text-[#FF6600] border border-[#FF6600]/30 shrink-0">
               <History className="w-5 h-5" />
             </div>
             <div>
@@ -128,7 +128,8 @@ export const NivelHistorialModal: React.FC<NivelHistorialModalProps> = ({ isOpen
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+            aria-label="Cerrar modal de auditoría"
+            className="p-2 rounded-xl text-zinc-400 hover:text-white bg-zinc-800 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center focus-visible:ring-2 focus-visible:ring-[#FF6600]"
           >
             <X className="w-5 h-5" />
           </button>
@@ -264,6 +265,16 @@ export const NivelHistorialModal: React.FC<NivelHistorialModalProps> = ({ isOpen
               );
             })
           )}
+        </div>
+
+        {/* Sticky Bottom Close Button */}
+        <div className="sticky bottom-0 bg-[#1e1e1e] pt-3 pb-1 border-t border-zinc-800 shrink-0">
+          <button
+            onClick={onClose}
+            className="w-full py-2.5 bg-zinc-800 hover:bg-zinc-700 text-white font-bold text-xs uppercase font-mono rounded-xl transition-colors min-h-[44px] flex items-center justify-center focus-visible:ring-2 focus-visible:ring-zinc-400"
+          >
+            Cerrar Auditoría
+          </button>
         </div>
       </div>
     </div>

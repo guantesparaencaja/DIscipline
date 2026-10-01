@@ -51,9 +51,10 @@ export const WeeklyCompletionChart: React.FC = () => {
         <span className="text-[10px] text-zinc-400 font-mono">Objetivos Cumplidos</span>
       </div>
 
-      <div className="h-44 w-full">
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+      <div className="overflow-x-auto w-full">
+        <div className="h-44 min-w-[260px] w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
             <XAxis
               dataKey="day"
               stroke="#666"
@@ -97,6 +98,7 @@ export const WeeklyCompletionChart: React.FC = () => {
             </Bar>
           </BarChart>
         </ResponsiveContainer>
+        </div>
       </div>
 
       <div className="flex items-center justify-center gap-4 text-[10px] text-zinc-400 mt-2">

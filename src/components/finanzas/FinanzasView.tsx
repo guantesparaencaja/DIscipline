@@ -13,7 +13,12 @@ import {
   CheckCircle2,
   Calendar,
   CreditCard,
-  Settings
+  Settings,
+  AlertTriangle,
+  AlertOctagon,
+  PieChart,
+  Edit2,
+  X
 } from 'lucide-react';
 import { PaymentMethod } from '../../types';
 
@@ -32,17 +37,34 @@ export const FinanzasView: React.FC<FinanzasViewProps> = ({
   const expenses = store.expenses || [];
   const goals = store.goals || [];
   const categories = store.categories || [];
-  const { deleteExpense, getAvailableFunds } = store;
+  const { deleteExpense, getAvailableFunds, updateCategoryBudget } = store;
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('all');
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<'all' | 'gastos' | 'ahorros'>('all');
+  const [budgetModalCategory, setBudgetModalCategory] = useState<any>(null);
+  const [budgetInputStr, setBudgetInputStr] = useState('');
 
   const income = financialSettings.baseMonthlyIncome || 0;
   const activeFixedDeductions = fixedDeductions.filter((d) => d && d.isActive);
   const totalFixed = activeFixedDeductions.reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
   const totalExpenses = expenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
   const availableFunds = getAvailableFunds();
+
+  const currentMonthStr = new Date().toISOString().substring(0, 7);
+
+  const handleOpenBudgetModal = (cat: any) => {
+    setBudgetModalCategory(cat);
+    setBudgetInputStr(String(cat.budgetLimit || 150000));
+  };
+
+  const handleSaveBudget = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!budgetModalCategory) return;
+    const amount = Number(budgetInputStr.replace(/\D/g, '')) || 0;
+    updateCategoryBudget(budgetModalCategory.id, amount);
+    setBudgetModalCategory(null);
+  };
 
   // Filtered expenses
   const filteredExpenses = expenses.filter((e) => {
@@ -189,7 +211,173 @@ export const FinanzasView: React.FC<FinanzasViewProps> = ({
         </div>
       </div>
 
-      {/* 4. Historial Filtrable de Gastos y Ahorros */}
+      {/* 4. Presupuesto Mensual por Categoría con Alertas (80% y 100%) */}
+      <div className="bg-[#1e1e1e] border border-[#2b2b2b] rounded-3xl p-5 shadow-xl space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <h3 className="text-sm font-black text-white font-mono uppercase tracking-wider flex items-center gap-2">
+              <PieChart className="w-4 h-4 text-[#FF6600]" />
+              Presupuesto Mensual por Categoría
+            </h3>
+            <p className="text-xs text-zinc-400 mt-0.5">
+              Control de límites con alerta temprana al <strong className="text-amber-400 font-bold">80%</strong> y alerta roja al <strong className="text-rose-400 font-bold">100%</strong>.
+            </p>
+          </div>
+          <span className="text-[11px] text-zinc-400 font-mono">
+            Mes evaluado: {new Date().toLocaleDateString('es-CO', { month: 'long', year: 'numeric' })}
+          </span>
+        </div>
+
+        {/* Dynamic Critical Alert Banners */}
+        {(() => {
+          const categoriesWithMetrics = categories.map((cat) => {
+            const spent = expenses
+              .filter((e) => !e.isSaving && e.categoryId === cat.id && e.date.startsWith(currentMonthStr))
+              .reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+            const limit = cat.budgetLimit || 300000;
+            const pct = limit > 0 ? Math.round((spent / limit) * 100) : 0;
+            return { ...cat, spent, limit, pct };
+          });
+
+          const exceeded = categoriesWithMetrics.filter((c) => c.pct >= 100);
+          const warning80 = categoriesWithMetrics.filter((c) => c.pct >= 80 && c.pct < 100);
+
+          return (
+            <div className="space-y-2">
+              {exceeded.length > 0 && (
+                <div className="bg-rose-950/40 border border-rose-600/60 rounded-2xl p-3.5 flex items-start gap-3 text-xs animate-pulse">
+                  <AlertOctagon className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+                  <div className="space-y-0.5">
+                    <strong className="text-rose-300 font-bold font-mono block">
+                      ¡ALERTA CRÍTICA: LÍMITE PRESUPUESTARIO SUPERADO AL 100%!
+                    </strong>
+                    <span className="text-zinc-300 leading-relaxed">
+                      Has excedido el tope fijado en: {exceeded.map((c) => `${c.name} (${c.pct}%)`).join(', ')}.
+                      Modera los desembolsos en estas áreas para evitar drenar tu Fondo Disponible.
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {warning80.length > 0 && (
+                <div className="bg-amber-950/40 border border-amber-600/60 rounded-2xl p-3.5 flex items-start gap-3 text-xs">
+                  <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                  <div className="space-y-0.5">
+                    <strong className="text-amber-300 font-bold font-mono block">
+                      ¡ADVERTENCIA: ZONA DE RIESGO SUPERIOR AL 80%!
+                    </strong>
+                    <span className="text-zinc-300 leading-relaxed">
+                      Las siguientes categorías están cerca de agotarse: {warning80.map((c) => `${c.name} (${c.pct}%)`).join(', ')}.
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
+        {/* Categories Budget Cards Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 pt-1">
+          {categories.map((cat) => {
+            const spent = expenses
+              .filter((e) => !e.isSaving && e.categoryId === cat.id && e.date.startsWith(currentMonthStr))
+              .reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+            const limit = cat.budgetLimit || 300000;
+            const pct = limit > 0 ? Math.round((spent / limit) * 100) : 0;
+            const remaining = Math.max(0, limit - spent);
+
+            let statusColor = 'text-emerald-400 bg-emerald-950/60 border-emerald-800/60';
+            let barGradient = 'from-emerald-500 to-emerald-400';
+            let statusLabel = 'Bajo control';
+
+            if (pct >= 100) {
+              statusColor = 'text-rose-400 bg-rose-950/80 border-rose-800/80';
+              barGradient = 'from-rose-600 to-rose-400';
+              statusLabel = '¡100% Excedido!';
+            } else if (pct >= 80) {
+              statusColor = 'text-amber-400 bg-amber-950/80 border-amber-800/80';
+              barGradient = 'from-amber-600 to-amber-400';
+              statusLabel = '¡Alerta 80%!';
+            }
+
+            return (
+              <div
+                key={cat.id}
+                className={`p-4 rounded-2xl border transition-all space-y-3 bg-[#181818] ${
+                  pct >= 100
+                    ? 'border-rose-600/70 shadow-lg shadow-rose-950/30'
+                    : pct >= 80
+                    ? 'border-amber-600/60'
+                    : 'border-zinc-800/80 hover:border-zinc-700'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span
+                      className="w-2.5 h-2.5 rounded-full shrink-0"
+                      style={{ backgroundColor: cat.color || '#FF6600' }}
+                    />
+                    <h5 className="font-bold text-white text-xs truncate font-mono">
+                      {cat.name}
+                    </h5>
+                  </div>
+
+                  <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border font-mono uppercase ${statusColor}`}>
+                    {statusLabel}
+                  </span>
+                </div>
+
+                {/* Progress bar */}
+                <div className="space-y-1">
+                  <div className="w-full bg-zinc-800 h-2 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 bg-gradient-to-r ${barGradient}`}
+                      style={{ width: `${Math.min(100, pct)}%` }}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between text-[10px] font-mono text-zinc-400">
+                    <span>{pct}% gastado</span>
+                    <span>
+                      {pct >= 100 ? (
+                        <strong className="text-rose-400 font-bold">Excedido en {formatCOP(spent - limit)}</strong>
+                      ) : (
+                        <span>Restante: {formatCOP(remaining)}</span>
+                      )}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Amount details and Edit button */}
+                <div className="pt-2 border-t border-zinc-800/60 flex items-center justify-between text-xs">
+                  <div>
+                    <span className="text-[10px] text-zinc-500 block font-mono">
+                      Gastado / Límite
+                    </span>
+                    <div className="font-mono font-bold text-white text-xs">
+                      <span className={pct >= 100 ? 'text-rose-400' : 'text-zinc-200'}>
+                        {formatCOP(spent)}
+                      </span>
+                      <span className="text-zinc-500"> / </span>
+                      <span className="text-zinc-400">{formatCOP(limit)}</span>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => handleOpenBudgetModal(cat)}
+                    className="p-1.5 rounded-xl text-zinc-400 hover:text-white bg-[#222] hover:bg-[#2c2c2c] border border-zinc-700/40 transition-colors flex items-center gap-1 font-mono text-[10px]"
+                    title="Editar límite de presupuesto"
+                  >
+                    <Edit2 className="w-3 h-3 text-[#FF6600]" />
+                    <span>Límite</span>
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 5. Historial Filtrable de Gastos y Ahorros */}
       <div className="bg-[#1e1e1e] border border-[#2b2b2b] rounded-3xl p-5 shadow-xl space-y-4">
         {/* Filters and search header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
@@ -329,6 +517,89 @@ export const FinanzasView: React.FC<FinanzasViewProps> = ({
           </table>
         </div>
       </div>
+
+      {/* 6. Modal para Editar Límite de Presupuesto */}
+      {budgetModalCategory && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-[#1e1e1e] border border-[#333] rounded-3xl max-w-sm w-full p-6 shadow-2xl relative">
+            <button
+              onClick={() => setBudgetModalCategory(null)}
+              className="absolute top-5 right-5 p-2 rounded-xl text-zinc-400 hover:text-white bg-[#252525] hover:bg-[#303030] transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div className="mb-4">
+              <span className="text-[10px] font-bold text-[#FF6600] uppercase tracking-widest font-mono">
+                Límite Presupuestario
+              </span>
+              <h3 className="text-lg font-black text-white font-mono mt-0.5">
+                {budgetModalCategory.name}
+              </h3>
+              <p className="text-xs text-zinc-400 mt-1">
+                Fija el gasto máximo mensual. Te alertará al 80% y 100%.
+              </p>
+            </div>
+
+            <form onSubmit={handleSaveBudget} className="space-y-4 text-xs">
+              <div>
+                <label className="block text-zinc-300 font-bold mb-1">
+                  Tope Mensual (Pesos Colombianos COP) *
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    required
+                    value={budgetInputStr}
+                    onChange={(e) => setBudgetInputStr(e.target.value.replace(/\D/g, ''))}
+                    placeholder="Ej: 300000"
+                    className="w-full bg-[#141414] border border-[#333] rounded-xl px-3.5 py-2.5 text-white font-mono text-base focus:outline-none focus:border-[#FF6600]"
+                  />
+                  <span className="absolute right-3.5 top-3 text-xs text-zinc-400 font-mono">
+                    {formatCOP(Number(budgetInputStr) || 0)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Quick Presets */}
+              <div>
+                <span className="text-[10px] text-zinc-400 font-mono block mb-1.5">
+                  Sugerencias rápidas:
+                </span>
+                <div className="grid grid-cols-3 gap-1.5 font-mono text-[10px]">
+                  {[100000, 200000, 350000, 500000, 800000, 1200000].map((val) => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => setBudgetInputStr(String(val))}
+                      className="py-1.5 px-2 bg-[#161616] hover:bg-[#252525] border border-zinc-800 rounded-lg text-zinc-300 transition-colors font-bold text-center"
+                    >
+                      {formatCOP(val)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setBudgetModalCategory(null)}
+                  className="px-4 py-2 rounded-xl text-zinc-400 hover:text-white bg-[#252525] font-mono font-bold"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-[#FF6600] hover:bg-orange-500 text-black font-black font-mono uppercase tracking-wider"
+                >
+                  Guardar Límite
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
