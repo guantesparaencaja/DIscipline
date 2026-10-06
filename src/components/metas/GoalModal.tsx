@@ -3,6 +3,7 @@ import { useSayayinStore } from '../../store/useSayayinStore';
 import { X, Target, Calendar, Calculator, Sparkles, AlertCircle } from 'lucide-react';
 import { GoalPriority, GoalStatus } from '../../types';
 import { formatCOP, getTodayDateString } from '../../lib/formatters';
+import { GoalSchema, validateForm } from '../../lib/validation';
 
 interface GoalModalProps {
   isOpen: boolean;
@@ -52,30 +53,34 @@ export const GoalModal: React.FC<GoalModalProps> = ({ isOpen, onClose }) => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim()) {
-      setErrorMsg('Ingresa el nombre de la meta');
-      return;
-    }
-    if (targetAmount <= 0) {
-      setErrorMsg('El valor objetivo debe ser mayor a 0 COP');
-      return;
-    }
-    if (new Date(targetDate) <= new Date(startDate)) {
-      setErrorMsg('La fecha objetivo debe ser posterior a la fecha de inicio');
-      return;
-    }
-    setErrorMsg(null);
 
-    const cleanTitle = title.trim();
-    await addGoal({
-      title: cleanTitle,
-      description: description.trim(),
+    const validation = validateForm(GoalSchema, {
+      title,
+      description,
+      targetAmount,
       category,
       startDate,
       targetDate,
       priority,
-      status,
-      targetAmount,
+      status
+    });
+
+    if (!validation.success) {
+      setErrorMsg(validation.error);
+      return;
+    }
+    setErrorMsg(null);
+
+    const cleanTitle = validation.data.title;
+    await addGoal({
+      title: cleanTitle,
+      description: validation.data.description,
+      category: validation.data.category,
+      startDate: validation.data.startDate,
+      targetDate: validation.data.targetDate,
+      priority: validation.data.priority,
+      status: validation.data.status,
+      targetAmount: validation.data.targetAmount,
       motivation: motivation.trim() || 'Forjar libertad e invulnerabilidad financiera de guerrero.'
     });
 

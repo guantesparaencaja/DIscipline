@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase';
 import { Goal } from '../types';
 import { mapGoalFromDb, mapGoalToDb } from './mappers';
+import { GoalSchema, sanitizeText } from '../lib/validation';
 
 export const goalsRepository = {
   async getGoals(userId: string): Promise<Goal[]> {
@@ -22,7 +23,28 @@ export const goalsRepository = {
   async createGoal(goal: Goal): Promise<Goal> {
     if (!supabase) return goal;
 
-    const payload = mapGoalToDb(goal);
+    const validation = GoalSchema.safeParse({
+      title: goal.title,
+      description: goal.description,
+      targetAmount: goal.targetAmount,
+      category: goal.category,
+      startDate: goal.startDate,
+      targetDate: goal.targetDate,
+      priority: goal.priority,
+      status: goal.status
+    });
+
+    if (!validation.success) {
+      throw new Error(`Validación de meta fallida: ${validation.error.issues[0]?.message || 'Datos inválidos'}`);
+    }
+
+    const sanitizedGoal: Goal = {
+      ...goal,
+      title: validation.data.title,
+      description: validation.data.description || ''
+    };
+
+    const payload = mapGoalToDb(sanitizedGoal);
     const { data, error } = await supabase
       .from('goals')
       .insert(payload)
@@ -40,12 +62,15 @@ export const goalsRepository = {
     if (!supabase) return;
 
     const payload: Record<string, any> = { updated_at: new Date().toISOString() };
-    if (updates.title !== undefined) payload.title = updates.title;
-    if (updates.description !== undefined) payload.description = updates.description;
+    if (updates.title !== undefined) payload.title = sanitizeText(updates.title);
+    if (updates.description !== undefined) payload.description = sanitizeText(updates.description);
     if (updates.category !== undefined) payload.category = updates.category;
     if (updates.startDate !== undefined) payload.start_date = updates.startDate;
     if (updates.targetDate !== undefined) payload.target_date = updates.targetDate;
-    if (updates.targetAmount !== undefined) payload.target_amount = updates.targetAmount;
+    if (updates.targetAmount !== undefined) {
+      if (updates.targetAmount <= 0) throw new Error('El monto objetivo debe ser mayor a 0 COP');
+      payload.target_amount = updates.targetAmount;
+    }
     if (updates.currentSavings !== undefined) {
       payload.current_amount = updates.currentSavings;
       payload.current_savings = updates.currentSavings;

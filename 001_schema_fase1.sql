@@ -392,33 +392,86 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- 17. POLÍTICAS DE SEGURIDAD (RLS) - PRIVACIDAD ESTRICTA
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.expenses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.financial_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.fixed_deductions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.goals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.plans ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.daily_objectives ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.xp_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_achievements ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.connections ENABLE ROW LEVEL SECURITY;
 
+-- Profiles: El dueño puede ver y editar su perfil; los compañeros conectados pueden ver el perfil
+DROP POLICY IF EXISTS "Dueño gestiona su perfil" ON public.profiles;
+CREATE POLICY "Dueño gestiona su perfil" ON public.profiles
+    FOR ALL USING (auth.uid() = id);
+
+DROP POLICY IF EXISTS "Compañero conectado puede ver perfil" ON public.profiles;
+CREATE POLICY "Compañero conectado puede ver perfil" ON public.profiles
+    FOR SELECT USING (
+        auth.uid() = id
+        OR EXISTS (
+            SELECT 1 FROM public.connections
+            WHERE (user_a = auth.uid() AND user_b = profiles.id)
+               OR (user_b = auth.uid() AND user_a = profiles.id)
+        )
+    );
+
+-- Connections: Solo los participantes pueden ver o gestionar sus conexiones
+DROP POLICY IF EXISTS "Usuario gestiona sus conexiones" ON public.connections;
+CREATE POLICY "Usuario gestiona sus conexiones" ON public.connections
+    FOR ALL USING (auth.uid() = user_a OR auth.uid() = user_b);
+
+-- Gastos: Privacidad absoluta (Solo el dueño)
 DROP POLICY IF EXISTS "Solo el dueño puede ver sus gastos" ON public.expenses;
 CREATE POLICY "Solo el dueño puede ver sus gastos" ON public.expenses
     FOR ALL USING (auth.uid() = user_id);
 
+-- Configuración financiera: Privacidad absoluta (Solo el dueño)
 DROP POLICY IF EXISTS "Solo el dueño puede ver sus finanzas" ON public.financial_settings;
 CREATE POLICY "Solo el dueño puede ver sus finanzas" ON public.financial_settings
     FOR ALL USING (auth.uid() = user_id);
 
+-- Deducciones fijas: Privacidad absoluta (Solo el dueño)
 DROP POLICY IF EXISTS "Solo el dueño puede ver sus deducciones" ON public.fixed_deductions;
 CREATE POLICY "Solo el dueño puede ver sus deducciones" ON public.fixed_deductions
     FOR ALL USING (auth.uid() = user_id);
 
+-- Metas de ahorro: Privacidad absoluta (Solo el dueño)
 DROP POLICY IF EXISTS "Solo el dueño puede ver sus metas" ON public.goals;
 CREATE POLICY "Solo el dueño puede ver sus metas" ON public.goals
     FOR ALL USING (auth.uid() = user_id);
 
+-- Planes: Privacidad absoluta (Solo el dueño)
 DROP POLICY IF EXISTS "Solo el dueño puede ver sus planes" ON public.plans;
 CREATE POLICY "Solo el dueño puede ver sus planes" ON public.plans
     FOR ALL USING (auth.uid() = user_id);
 
+-- Eventos de XP / Ki: Privacidad absoluta (Solo el dueño puede auditar sus eventos de XP)
+DROP POLICY IF EXISTS "Solo el dueño puede ver sus xp_events" ON public.xp_events;
+CREATE POLICY "Solo el dueño puede ver sus xp_events" ON public.xp_events
+    FOR ALL USING (auth.uid() = user_id);
+
+-- Logros desbloqueados: El dueño gestiona y el compañero conectado puede verlos
+DROP POLICY IF EXISTS "Dueño gestiona sus logros" ON public.user_achievements;
+CREATE POLICY "Dueño gestiona sus logros" ON public.user_achievements
+    FOR ALL USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Compañero ve logros desbloqueados" ON public.user_achievements;
+CREATE POLICY "Compañero ve logros desbloqueados" ON public.user_achievements
+    FOR SELECT USING (
+        auth.uid() = user_id
+        OR EXISTS (
+            SELECT 1 FROM public.connections
+            WHERE (user_a = auth.uid() AND user_b = user_achievements.user_id)
+               OR (user_b = auth.uid() AND user_a = user_achievements.user_id)
+        )
+    );
+
+-- Objetivos diarios: El dueño gestiona todos sus objetivos.
+-- El compañero de entrenamiento SOLO puede ver aquellos marcados con is_partner_visible = TRUE
 DROP POLICY IF EXISTS "Dueño gestiona sus objetivos" ON public.daily_objectives;
 CREATE POLICY "Dueño gestiona sus objetivos" ON public.daily_objectives
     FOR ALL USING (auth.uid() = user_id);

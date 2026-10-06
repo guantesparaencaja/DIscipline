@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase';
 import { Expense } from '../types';
 import { mapExpenseFromDb, mapExpenseToDb, mapPaymentMethodToDb } from './mappers';
+import { ExpenseSchema, sanitizeText } from '../lib/validation';
 
 export const expensesRepository = {
   async getExpenses(userId: string): Promise<Expense[]> {
@@ -22,7 +23,30 @@ export const expensesRepository = {
   async createExpense(expense: Expense): Promise<Expense> {
     if (!supabase) return expense;
 
-    const payload = mapExpenseToDb(expense);
+    // Validate with Zod before sending to Supabase
+    const validation = ExpenseSchema.safeParse({
+      description: expense.description,
+      amount: expense.amount,
+      categoryId: expense.categoryId,
+      categoryName: expense.categoryName,
+      date: expense.date,
+      paymentMethod: expense.paymentMethod,
+      isSaving: expense.isSaving,
+      goalId: expense.goalId,
+      note: expense.note
+    });
+
+    if (!validation.success) {
+      throw new Error(`Validación de gasto fallida: ${validation.error.issues[0]?.message || 'Datos inválidos'}`);
+    }
+
+    const sanitizedExpense: Expense = {
+      ...expense,
+      description: validation.data.description,
+      note: validation.data.note
+    };
+
+    const payload = mapExpenseToDb(sanitizedExpense);
     const { data, error } = await supabase
       .from('expenses')
       .insert(payload)
@@ -40,12 +64,15 @@ export const expensesRepository = {
     if (!supabase) return;
 
     const payload: Record<string, any> = {};
-    if (updates.description !== undefined) payload.description = updates.description;
-    if (updates.amount !== undefined) payload.amount = updates.amount;
+    if (updates.description !== undefined) payload.description = sanitizeText(updates.description);
+    if (updates.amount !== undefined) {
+      if (updates.amount <= 0) throw new Error('El monto debe ser mayor a 0 COP');
+      payload.amount = updates.amount;
+    }
     if (updates.categoryId !== undefined) payload.category_id = updates.categoryId;
-    if (updates.categoryName !== undefined) payload.category_name = updates.categoryName;
+    if (updates.categoryName !== undefined) payload.category_name = sanitizeText(updates.categoryName);
     if (updates.date !== undefined) payload.date = updates.date;
-    if (updates.note !== undefined) payload.note = updates.note;
+    if (updates.note !== undefined) payload.note = sanitizeText(updates.note);
     if (updates.paymentMethod !== undefined) payload.payment_method = mapPaymentMethodToDb(updates.paymentMethod);
     if (updates.isSaving !== undefined) payload.is_saving = updates.isSaving;
     if (updates.goalId !== undefined) payload.goal_id = updates.goalId;

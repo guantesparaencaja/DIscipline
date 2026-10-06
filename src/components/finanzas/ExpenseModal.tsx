@@ -3,6 +3,7 @@ import { useSayayinStore } from '../../store/useSayayinStore';
 import { X, DollarSign, Tag, Calendar, CreditCard, PiggyBank, AlertCircle } from 'lucide-react';
 import { PaymentMethod } from '../../types';
 import { formatCOP, getTodayDateString } from '../../lib/formatters';
+import { ExpenseSchema, validateForm } from '../../lib/validation';
 
 interface ExpenseModalProps {
   isOpen: boolean;
@@ -27,20 +28,10 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose }) =
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const amount = Number(amountStr.replace(/\D/g, ''));
-    if (!amount || amount <= 0) {
-      setErrorMsg('Ingresa un monto válido mayor a 0 COP');
-      return;
-    }
-    if (!description.trim()) {
-      setErrorMsg('Ingresa una descripción del gasto');
-      return;
-    }
-    setErrorMsg(null);
-
     const selectedCategory = categories.find((c) => c.id === categoryId);
 
-    addExpense({
-      description: description.trim(),
+    const validation = validateForm(ExpenseSchema, {
+      description,
       amount,
       categoryId,
       categoryName: selectedCategory ? selectedCategory.name : 'Varios',
@@ -49,6 +40,24 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose }) =
       isSaving,
       goalId: isSaving ? goalId : undefined,
       note: note.trim() || undefined
+    });
+
+    if (!validation.success) {
+      setErrorMsg(validation.error);
+      return;
+    }
+    setErrorMsg(null);
+
+    addExpense({
+      description: validation.data.description,
+      amount: validation.data.amount,
+      categoryId: validation.data.categoryId,
+      categoryName: validation.data.categoryName,
+      date: validation.data.date,
+      paymentMethod: validation.data.paymentMethod,
+      isSaving: validation.data.isSaving,
+      goalId: validation.data.goalId,
+      note: validation.data.note
     });
 
     // Reset and close

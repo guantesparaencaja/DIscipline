@@ -58,12 +58,14 @@ test.describe('Auditoría Integral y Responsive · Sayayin Radar', () => {
     await expect(modalTitle.first()).not.toBeVisible();
   });
 
-  test('3. Flujo de crear meta de ahorro real', async ({ page, isMobile }) => {
+  test('3. Flujo de crear meta de ahorro real', async ({ page, isMobile }: { page: Page; isMobile?: boolean }) => {
     await navigateToTab(page, isMobile, 'metas');
-    await expect(page.locator('h1:has-text("Metas de Ahorro Real")')).toBeVisible();
+    await expect(page.locator('h1:has-text("Metas de Ahorro")')).toBeVisible();
 
-    // Open GoalModal
-    await page.locator('button:has-text("Crear Meta")').first().click();
+    // Open GoalModal via Fijar Nueva Meta button
+    const openGoalBtn = page.locator('button:has-text("Fijar Nueva Meta"), button:has-text("Crear Mi Primera Meta")');
+    await expect(openGoalBtn.first()).toBeVisible();
+    await openGoalBtn.first().click();
     await expect(page.locator('text=Crear Meta Saiyajin')).toBeVisible();
 
     // Fill goal form
@@ -83,13 +85,13 @@ test.describe('Auditoría Integral y Responsive · Sayayin Radar', () => {
     await expect(page.locator(`text=${goalTitle}`)).toBeVisible();
   });
 
-  test('4. Flujo de crear objetivo diario en el radar', async ({ page, isMobile }) => {
+  test('4. Flujo de crear objetivo diario en el radar', async ({ page, isMobile }: { page: Page; isMobile?: boolean }) => {
     await navigateToTab(page, isMobile, 'objetivos');
-    await expect(page.locator('h1:has-text("Radar de Objetivos")')).toBeVisible();
+    await expect(page.locator('h1:has-text("Objetivos Diarios")')).toBeVisible();
 
     // Open ObjectiveModal
     await page.locator('button:has-text("Nuevo Objetivo")').first().click();
-    await expect(page.locator('text=Nuevo Objetivo Diario')).toBeVisible();
+    await expect(page.locator('text=Crear Objetivo Diario')).toBeVisible();
 
     // Fill objective title
     const objTitle = `Entrenar Ki ${Date.now().toString().slice(-4)}`;
@@ -102,7 +104,7 @@ test.describe('Auditoría Integral y Responsive · Sayayin Radar', () => {
     await expect(page.locator(`text=${objTitle}`)).toBeVisible();
   });
 
-  test('5. Flujo de completar objetivo', async ({ page, isMobile }) => {
+  test('5. Flujo de completar objetivo', async ({ page, isMobile }: { page: Page; isMobile?: boolean }) => {
     await navigateToTab(page, isMobile, 'inicio');
     await expect(page.locator('h3:has-text("Objetivos del Día")')).toBeVisible();
 
@@ -118,9 +120,9 @@ test.describe('Auditoría Integral y Responsive · Sayayin Radar', () => {
     }
   });
 
-  test('6. Flujo de registrar gasto real', async ({ page, isMobile }) => {
+  test('6. Flujo de registrar gasto real', async ({ page, isMobile }: { page: Page; isMobile?: boolean }) => {
     await navigateToTab(page, isMobile, 'finanzas');
-    await expect(page.locator('h1:has-text("Presupuesto & Finanzas Reales")')).toBeVisible();
+    await expect(page.locator('h1:has-text("Radar de Finanzas")')).toBeVisible();
 
     // Open ExpenseModal
     await page.locator('button:has-text("Registrar Movimiento")').first().click();
@@ -129,7 +131,7 @@ test.describe('Auditoría Integral y Responsive · Sayayin Radar', () => {
     // Fill amount and description
     await page.locator('input[placeholder="Ej: 50000"]').fill('35000');
     const desc = `Proteína Saiyajin ${Date.now().toString().slice(-4)}`;
-    await page.locator('input[placeholder*="Ej: Mercado de la semana"]').fill(desc);
+    await page.locator('input[placeholder*="Mercado semanal"]').fill(desc);
 
     // Submit
     await page.locator('button:has-text("Guardar Movimiento")').click();
@@ -138,12 +140,12 @@ test.describe('Auditoría Integral y Responsive · Sayayin Radar', () => {
     await expect(page.locator(`text=${desc}`)).toBeVisible();
   });
 
-  test('7. Flujo de conectar compañero y verificar responsive sin scroll horizontal', async ({ page, isMobile }) => {
+  test('7. Flujo de conectar compañero y verificar responsive sin scroll horizontal', async ({ page, isMobile }: { page: Page; isMobile?: boolean }) => {
     await navigateToTab(page, isMobile, 'companero');
-    await expect(page.locator('h1:has-text("Entrenamiento en Pareja")')).toBeVisible();
+    await expect(page.locator('h1:has-text("Compañero Saiyajin")')).toBeVisible();
 
     // Verify copy code button exists
-    const copyBtn = page.locator('button:has-text("Copiar Código"), button:has-text("Copiado")');
+    const copyBtn = page.locator('button[title="Copiar código"]');
     await expect(copyBtn.first()).toBeVisible();
 
     // Test partner code input
@@ -159,5 +161,60 @@ test.describe('Auditoría Integral y Responsive · Sayayin Radar', () => {
       return document.documentElement.scrollWidth > document.documentElement.clientWidth + 1;
     });
     expect(hasOverflow).toBe(false);
+  });
+
+  test('8. Flujo de exportación de datos y diagnóstico en Configuración', async ({ page, isMobile }: { page: Page; isMobile?: boolean }) => {
+    await navigateToTab(page, isMobile, 'configuracion');
+    await expect(page.locator('h1:has-text("Configuración del Sistema")')).toBeVisible();
+
+    // Verify export buttons exist
+    const jsonBtn = page.locator('button:has-text("Descargar JSON")');
+    await expect(jsonBtn).toBeVisible();
+
+    const csvBtn = page.locator('button:has-text("Descargar CSV")');
+    await expect(csvBtn).toBeVisible();
+
+    // Trigger JSON download listener
+    const downloadPromise = page.waitForEvent('download', { timeout: 4000 }).catch(() => null);
+    await jsonBtn.click();
+    const download = await downloadPromise;
+    if (download) {
+      expect(download.suggestedFilename()).toContain('.json');
+    }
+  });
+
+  test('9. Flujo de doble confirmación para eliminación de cuenta', async ({ page, isMobile }: { page: Page; isMobile?: boolean }) => {
+    await navigateToTab(page, isMobile, 'configuracion');
+
+    // Click on initial delete account button in danger zone
+    const openDeleteModalBtn = page.locator('button:has-text("Eliminar Cuenta")');
+    await expect(openDeleteModalBtn).toBeVisible();
+    await openDeleteModalBtn.click();
+
+    // Verify Step 1 modal is shown
+    await expect(page.locator('text=¿Eliminar tu cuenta por completo?')).toBeVisible();
+
+    // Proceed to Step 2
+    const step2Btn = page.locator('button:has-text("Continuar al Paso 2 →")');
+    await expect(step2Btn).toBeVisible();
+    await step2Btn.click();
+
+    // Verify Step 2 modal and disabled submit button
+    await expect(page.locator('text=Confirmación Definitiva')).toBeVisible();
+    const finalDeleteBtn = page.locator('button:has-text("Eliminar Definitivamente")');
+    await expect(finalDeleteBtn).toBeDisabled();
+
+    // Type incorrect keyword -> still disabled
+    const input = page.locator('input[placeholder="Escribe: ELIMINAR SAIYAJIN"]');
+    await input.fill('no quiero');
+    await expect(finalDeleteBtn).toBeDisabled();
+
+    // Type exact required keyword -> now enabled!
+    await input.fill('ELIMINAR SAIYAJIN');
+    await expect(finalDeleteBtn).toBeEnabled();
+
+    // Abort safely
+    await page.locator('button:has-text("Abortar")').click();
+    await expect(page.locator('text=Confirmación Definitiva')).not.toBeVisible();
   });
 });

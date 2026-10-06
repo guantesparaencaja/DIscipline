@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase';
 import { Habit, HabitLog } from '../types';
 import { mapHabitFromDb, mapHabitToDb, mapHabitLogFromDb, mapHabitLogToDb } from './mappers';
+import { HabitSchema, sanitizeText } from '../lib/validation';
 
 export const habitsRepository = {
   /**
@@ -29,7 +30,26 @@ export const habitsRepository = {
   async createHabit(habit: Habit): Promise<Habit> {
     if (!supabase) return habit;
 
-    const payload = mapHabitToDb(habit);
+    const validation = HabitSchema.safeParse({
+      name: habit.name,
+      frequency: habit.frequency,
+      timeSlot: habit.timeSlot,
+      customDays: habit.customDays,
+      xpReward: habit.xpReward,
+      description: habit.description
+    });
+
+    if (!validation.success) {
+      throw new Error(`Validación de hábito fallida: ${validation.error.issues[0]?.message || 'Datos inválidos'}`);
+    }
+
+    const sanitizedHabit: Habit = {
+      ...habit,
+      name: validation.data.name,
+      description: validation.data.description
+    };
+
+    const payload = mapHabitToDb(sanitizedHabit);
     const { data, error } = await supabase
       .from('habits')
       .insert(payload)
@@ -51,8 +71,8 @@ export const habitsRepository = {
     if (!supabase) return;
 
     const payload: Record<string, any> = { updated_at: new Date().toISOString() };
-    if (updates.name !== undefined) payload.name = updates.name;
-    if (updates.description !== undefined) payload.description = updates.description;
+    if (updates.name !== undefined) payload.name = sanitizeText(updates.name);
+    if (updates.description !== undefined) payload.description = sanitizeText(updates.description);
     if (updates.frequency !== undefined) payload.frequency = updates.frequency;
     if (updates.customDays !== undefined) payload.custom_days = updates.customDays;
     if (updates.optionalTime !== undefined) payload.optional_time = updates.optionalTime;

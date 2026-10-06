@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase';
 import { FinancialSettings, FixedDeduction } from '../types';
 import { mapSettingsFromDb, mapDeductionFromDb, mapDeductionToDb } from './mappers';
+import { FinancialSettingsSchema, FixedDeductionSchema, sanitizeText } from '../lib/validation';
 
 export const settingsRepository = {
   async getFinancialSettings(userId: string): Promise<FinancialSettings | null> {
@@ -20,10 +21,19 @@ export const settingsRepository = {
   async upsertFinancialSettings(settings: FinancialSettings): Promise<void> {
     if (!supabase) return;
 
+    const validation = FinancialSettingsSchema.safeParse({
+      baseMonthlyIncome: settings.baseMonthlyIncome,
+      emergencyFundTarget: settings.emergencyFundTarget
+    });
+
+    if (!validation.success) {
+      throw new Error(`Validación financiera fallida: ${validation.error.issues[0]?.message}`);
+    }
+
     const { error } = await supabase.from('financial_settings').upsert({
       user_id: settings.userId,
-      base_monthly_income: settings.baseMonthlyIncome,
-      emergency_fund_target: settings.emergencyFundTarget,
+      base_monthly_income: validation.data.baseMonthlyIncome,
+      emergency_fund_target: validation.data.emergencyFundTarget,
       updated_at: new Date().toISOString()
     });
 
@@ -51,7 +61,22 @@ export const settingsRepository = {
   async createFixedDeduction(deduction: FixedDeduction): Promise<FixedDeduction> {
     if (!supabase) return deduction;
 
-    const payload = mapDeductionToDb(deduction);
+    const validation = FixedDeductionSchema.safeParse({
+      name: deduction.name,
+      amount: deduction.amount,
+      category: deduction.category
+    });
+
+    if (!validation.success) {
+      throw new Error(`Validación de deducción fallida: ${validation.error.issues[0]?.message}`);
+    }
+
+    const sanitizedDeduction: FixedDeduction = {
+      ...deduction,
+      name: validation.data.name
+    };
+
+    const payload = mapDeductionToDb(sanitizedDeduction);
     const { data, error } = await supabase
       .from('fixed_deductions')
       .insert(payload)

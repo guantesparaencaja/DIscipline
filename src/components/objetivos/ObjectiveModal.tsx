@@ -16,6 +16,7 @@ import {
 import { DIFFICULTY_CONFIG, SMART_OBJECTIVE_TEMPLATES, TIME_SLOT_CONFIG } from '../../lib/constants';
 import { ObjectiveDifficulty, RecurrenceType, TimeSlot } from '../../types';
 import { formatCOP, getTodayDateString } from '../../lib/formatters';
+import { ObjectiveSchema, validateForm } from '../../lib/validation';
 
 interface ObjectiveModalProps {
   isOpen: boolean;
@@ -47,26 +48,40 @@ export const ObjectiveModal: React.FC<ObjectiveModalProps> = ({ isOpen, onClose 
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim()) {
-      setErrorMsg('Ingresa el título del objetivo');
-      return;
-    }
-    setErrorMsg(null);
 
     const savingAmount = savingAmountStr ? Number(savingAmountStr.replace(/\D/g, '')) : undefined;
-    const xpReward = DIFFICULTY_CONFIG[difficulty].xp;
 
-    addObjective({
-      title: title.trim(),
+    const validation = validateForm(ObjectiveSchema, {
+      title,
       date,
       timeSlot,
       customTime: customTime.trim() || undefined,
       difficulty,
-      xpReward,
       savingAmount: savingAmount && savingAmount > 0 ? savingAmount : undefined,
       goalId: savingAmount && goalId ? goalId : undefined,
       isPartnerVisible,
       recurrence
+    });
+
+    if (!validation.success) {
+      setErrorMsg(validation.error);
+      return;
+    }
+    setErrorMsg(null);
+
+    const xpReward = DIFFICULTY_CONFIG[difficulty].xp;
+
+    addObjective({
+      title: validation.data.title,
+      date: validation.data.date,
+      timeSlot: validation.data.timeSlot,
+      customTime: validation.data.customTime,
+      difficulty: validation.data.difficulty,
+      xpReward,
+      savingAmount: validation.data.savingAmount,
+      goalId: validation.data.goalId,
+      isPartnerVisible: validation.data.isPartnerVisible,
+      recurrence: validation.data.recurrence
     });
 
     // Reset and close

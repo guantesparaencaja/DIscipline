@@ -8,6 +8,7 @@ import {
   mapDifficultyToDb,
   mapRecurrenceToDb
 } from './mappers';
+import { ObjectiveSchema, sanitizeText } from '../lib/validation';
 
 export const objectivesRepository = {
   async getDailyObjectives(userId: string): Promise<DailyObjective[]> {
@@ -29,7 +30,28 @@ export const objectivesRepository = {
   async createObjective(objective: DailyObjective): Promise<DailyObjective> {
     if (!supabase) return objective;
 
-    const payload = mapObjectiveToDb(objective);
+    const validation = ObjectiveSchema.safeParse({
+      title: objective.title,
+      date: objective.date,
+      timeSlot: objective.timeSlot,
+      customTime: objective.customTime,
+      difficulty: objective.difficulty,
+      savingAmount: objective.savingAmount,
+      goalId: objective.goalId,
+      isPartnerVisible: objective.isPartnerVisible,
+      recurrence: objective.recurrence
+    });
+
+    if (!validation.success) {
+      throw new Error(`Validación de objetivo fallida: ${validation.error.issues[0]?.message || 'Datos inválidos'}`);
+    }
+
+    const sanitizedObj: DailyObjective = {
+      ...objective,
+      title: validation.data.title
+    };
+
+    const payload = mapObjectiveToDb(sanitizedObj);
     const { data, error } = await supabase
       .from('daily_objectives')
       .insert(payload)
@@ -47,7 +69,7 @@ export const objectivesRepository = {
     if (!supabase) return;
 
     const payload: Record<string, any> = {};
-    if (updates.title !== undefined) payload.title = updates.title;
+    if (updates.title !== undefined) payload.title = sanitizeText(updates.title);
     if (updates.date !== undefined) payload.date = updates.date;
     if (updates.timeSlot !== undefined) payload.slot = mapSlotToDb(updates.timeSlot);
     if (updates.customTime !== undefined) payload.custom_time = updates.customTime;

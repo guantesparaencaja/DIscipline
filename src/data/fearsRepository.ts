@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase';
 import { Fear, FearStep } from '../types';
 import { mapFearFromDb, mapFearToDb, mapFearStepFromDb, mapFearStepToDb } from './mappers';
+import { FearSchema } from '../lib/validation';
 
 export const fearsRepository = {
   async getFears(userId: string): Promise<Fear[]> {
@@ -49,7 +50,26 @@ export const fearsRepository = {
   async createFear(fear: Fear): Promise<Fear> {
     if (!supabase) return fear;
 
-    const payload = mapFearToDb(fear);
+    const validation = FearSchema.safeParse({
+      title: fear.title,
+      category: fear.category,
+      steps: (fear.steps || []).map((s, idx) => ({
+        title: s.title,
+        braveryPoints: s.braveryPoints || 10,
+        stepOrder: s.stepOrder || idx + 1
+      }))
+    });
+
+    if (!validation.success) {
+      console.warn('Validación de miedo fallida:', validation.error.issues[0]?.message);
+    }
+
+    const sanitizedFear: Fear = {
+      ...fear,
+      title: validation.success ? validation.data.title : fear.title
+    };
+
+    const payload = mapFearToDb(sanitizedFear);
     const { data, error } = await supabase
       .from('fears')
       .insert(payload)
